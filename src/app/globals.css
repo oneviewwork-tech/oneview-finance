@@ -1,0 +1,192 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: var(--font-geist-mono);
+  --color-brand: var(--brand);
+  --color-brand-foreground: var(--brand-foreground);
+  --color-brand-subtle: var(--brand-subtle);
+  --color-success: var(--success);
+  --color-success-subtle: var(--success-subtle);
+  --color-warning: var(--warning);
+  --color-warning-subtle: var(--warning-subtle);
+  --color-destructive: var(--destructive);
+  --color-destructive-subtle: var(--destructive-subtle);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-border-subtle: var(--border-subtle);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --color-surface-sunken: var(--surface-sunken);
+  --radius-sm: calc(var(--radius) * 0.55);
+  --radius-md: calc(var(--radius) * 0.75);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.3);
+  --shadow-xs: 0 1px 2px 0 oklch(0.2 0.03 258 / 0.04);
+  --shadow-sm: 0 1px 2px -1px oklch(0.2 0.03 258 / 0.06), 0 1px 3px 0 oklch(0.2 0.03 258 / 0.05);
+  --shadow-md: 0 4px 8px -2px oklch(0.2 0.03 258 / 0.06), 0 2px 4px -2px oklch(0.2 0.03 258 / 0.04);
+  --shadow-lg: 0 12px 24px -6px oklch(0.2 0.03 258 / 0.1), 0 4px 8px -4px oklch(0.2 0.03 258 / 0.05);
+}
+
+:root {
+  --radius: 0.625rem;
+
+  /* Neutral surface — cool, slightly desaturated, not stark white/gray */
+  --background: oklch(0.985 0.002 250);
+  --foreground: oklch(0.19 0.014 260);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.19 0.014 260);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.19 0.014 260);
+  --surface-sunken: oklch(0.965 0.004 255);
+
+  /* ONEVIEW blue — the primary brand accent. Confident, precise, not
+     overly saturated or purple-leaning. Used for primary actions, selected
+     states, links, focus rings — never for financial semantics. */
+  --brand: oklch(0.482 0.163 258);
+  --brand-foreground: oklch(0.99 0 0);
+  --brand-subtle: oklch(0.94 0.028 258);
+  --primary: var(--brand);
+  --primary-foreground: var(--brand-foreground);
+
+  --secondary: oklch(0.955 0.004 255);
+  --secondary-foreground: oklch(0.19 0.014 260);
+  --muted: oklch(0.955 0.004 255);
+  --muted-foreground: oklch(0.48 0.012 260);
+  --accent: oklch(0.955 0.006 255);
+  --accent-foreground: oklch(0.19 0.014 260);
+
+  /* Financial semantics — reserved meaning, never reused for decoration.
+     Green = received / paid / positive movement / healthy. */
+  --success: oklch(0.55 0.135 155);
+  --success-subtle: oklch(0.94 0.04 155);
+  /* Amber = pending / attention required / upcoming. */
+  --warning: oklch(0.68 0.14 70);
+  --warning-subtle: oklch(0.94 0.05 80);
+  /* Red = overdue / failed / negative movement / risk. */
+  --destructive: oklch(0.56 0.2 25);
+  --destructive-subtle: oklch(0.95 0.035 25);
+
+  --border: oklch(0.9 0.005 255);
+  --border-subtle: oklch(0.94 0.004 255);
+  --input: oklch(0.88 0.006 255);
+  --ring: oklch(0.482 0.163 258 / 0.5);
+}
+
+.dark {
+  --background: oklch(0.155 0.012 260);
+  --foreground: oklch(0.96 0.004 255);
+  --card: oklch(0.195 0.013 260);
+  --card-foreground: oklch(0.96 0.004 255);
+  --popover: oklch(0.195 0.013 260);
+  --popover-foreground: oklch(0.96 0.004 255);
+  --surface-sunken: oklch(0.13 0.012 260);
+
+  --brand: oklch(0.66 0.15 258);
+  --brand-foreground: oklch(0.14 0.02 260);
+  --brand-subtle: oklch(0.28 0.05 258);
+  --primary: var(--brand);
+  --primary-foreground: var(--brand-foreground);
+
+  --secondary: oklch(0.25 0.014 260);
+  --secondary-foreground: oklch(0.96 0.004 255);
+  --muted: oklch(0.25 0.014 260);
+  --muted-foreground: oklch(0.64 0.012 255);
+  --accent: oklch(0.27 0.014 260);
+  --accent-foreground: oklch(0.96 0.004 255);
+
+  --success: oklch(0.68 0.145 155);
+  --success-subtle: oklch(0.28 0.05 155);
+  --warning: oklch(0.75 0.135 75);
+  --warning-subtle: oklch(0.3 0.06 75);
+  --destructive: oklch(0.66 0.19 25);
+  --destructive-subtle: oklch(0.3 0.06 25);
+
+  --border: oklch(0.3 0.014 260);
+  --border-subtle: oklch(0.24 0.012 260);
+  --input: oklch(0.32 0.014 260);
+  --ring: oklch(0.66 0.15 258 / 0.5);
+}
+
+body {
+  background: var(--color-background);
+  color: var(--color-foreground);
+}
+
+/* ── Typography scale ──────────────────────────────────────────────
+   A small, named set of text roles so hierarchy stays consistent
+   without every page hand-picking a font-size/weight combination. */
+@utility text-page-title {
+  font-size: 1.375rem;
+  line-height: 1.85rem;
+  font-weight: 600;
+  letter-spacing: -0.011em;
+}
+@utility text-page-subtitle {
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  color: var(--color-muted-foreground);
+}
+@utility text-section-title {
+  font-size: 0.9375rem;
+  line-height: 1.375rem;
+  font-weight: 600;
+}
+@utility text-card-title {
+  font-size: 0.8125rem;
+  line-height: 1.125rem;
+  font-weight: 500;
+  color: var(--color-muted-foreground);
+}
+@utility text-metric {
+  font-size: 1.625rem;
+  line-height: 1.9rem;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  font-variant-numeric: normal;
+}
+@utility text-metric-sm {
+  font-size: 1.125rem;
+  line-height: 1.4rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+@utility text-label {
+  font-size: 0.75rem;
+  line-height: 1rem;
+  font-weight: 500;
+}
+@utility text-metadata {
+  font-size: 0.75rem;
+  line-height: 1rem;
+  color: var(--color-muted-foreground);
+}
+@utility text-table {
+  font-size: 0.8125rem;
+  line-height: 1.125rem;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Motion ─────────────────────────────────────────────────────────
+   Fixed, restrained timing so animation stays consistent and never
+   becomes a per-component guessing game. */
+@utility transition-ui {
+  transition-duration: 160ms;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+}

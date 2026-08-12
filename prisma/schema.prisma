@@ -1,0 +1,338 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ── Identity & Access ────────────────────────────────────────────────
+//
+// Mirrors ONEVIEW People's User/SystemRole shape (NextAuth JWT + Credentials
+// provider), but this app has its own User table and its own login — see
+// the Phase 0 decision to keep Finance a standalone app rather than share
+// hrms's session. Roles follow the spec's "ENTITY-BASED ACCESS" section
+// directly: a UAE finance user must not be able to touch India data, and a
+// viewer never gets write access anywhere.
+
+enum UserRole {
+  SUPER_ADMIN // full read/write across both entities + user/master-data admin
+  FINANCE_ADMIN // full read/write across both entities, not user admin
+  UAE_FINANCE_USER // read/write scoped to the UAE entity only
+  INDIA_FINANCE_USER // read/write scoped to the India entity only
+  MANAGEMENT_VIEWER // read-only, all entities, combined dashboard included
+}
+
+model User {
+  id                 String    @id @default(cuid())
+  email              String    @unique
+  passwordHash       String
+  name               String
+  role               UserRole  @default(MANAGEMENT_VIEWER)
+  isActive           Boolean   @default(true)
+  mustChangePassword Boolean   @default(true)
+  lastActiveAt       DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  createdTransactions FinancialTransaction[] @relation("TransactionCreatedBy")
+  updatedTransactions FinancialTransaction[] @relation("TransactionUpdatedBy")
+  payments            Payment[]
+  exchangeRates       ExchangeRate[]
+}
+
+// ── Currency & FX ────────────────────────────────────────────────────
+//
+// Only AED and INR exist today. Modelled as an enum, not a lookup table,
+// because the workbook and spec never treat currency as data with its own
+// attributes (symbol/decimals are formatting concerns, handled in code) —
+// adding a third currency later is a one-line enum + migration, which is
+// proportionate to how rarely that happens for this business.
+
+enum Currency {
+  AED
+  INR
+}
+
+enum RateSource {
+  LIVE // fetched from the configured FX provider
+  MANUAL // entered by a Finance Admin / FX_MANAGE user, overrides LIVE for that date
+}
+
+// One row per (base, quote, date). Reporting always resolves a rate by
+// explicit date — "today's" dashboard uses today's rate, a historical
+// period report uses that period's rate — never a single mutable "current
+// rate" global, per the spec's FX ACCOUNTING RULE (no silent
+// re-calculation of old reports against today's rate).
+model ExchangeRate {
+  id            String     @id @default(cuid())
+  baseCurrency  Currency
+  quoteCurrency Currency
+  rate          Decimal    @db.Decimal(14, 6)
+  rateDate      DateTime   @db.Date
+  source        RateSource
+  sourceDetail  String? // e.g. provider name for LIVE, free text for MANUAL
+  createdById   String?
+  createdBy     User?      @relation(fields: [createdById], references: [id])
+  createdAt     DateTime   @default(now())
+
+  @@unique([baseCurrency, quoteCurrency, rateDate, source])
+  @@index([baseCurrency, quoteCurrency, rateDate])
+}
+
+// ── Business entities (UAE / India) ─────────────────────────────────
+
+enum EntityStatus {
+  ACTIVE
+  INACTIVE
+}
+
+model BusinessEntity {
+  id           String       @id @default(cuid())
+  code         String       @unique // "UAE" | "INDIA"
+  name         String
+  country      String
+  baseCurrency Currency
+  status       EntityStatus @default(ACTIVE)
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  transactions FinancialTransaction[]
+  clients      Client[]
+  vendors      Vendor[]
+}
+
+// ── Master data (was the "Lists" sheet — now DB-backed and editable) ──
+
+model FinancialCategory {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  isActive  Boolean  @default(true)
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  transactions FinancialTransaction[]
+}
+
+// Payment Tracker's "Type" column: Current Month vs Old Dues / Arrears.
+// Kept configurable like every other Lists-sheet column rather than a
+// hardcoded enum, per the spec's "do not hardcode categories/types" rule.
+model ExpenseType {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  isActive  Boolean  @default(true)
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  transactions FinancialTransaction[]
+}
+
+model PaymentMethod {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  isActive  Boolean  @default(true)
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  payments Payment[]
+}
+
+model ClientType {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  isActive  Boolean  @default(true)
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  clients Client[]
+}
+
+// ── Clients & Vendors ────────────────────────────────────────────────
+
+enum ClientStatus {
+  ACTIVE
+  INACTIVE
+}
+
+model Client {
+  id           String       @id @default(cuid())
+  entityId     String
+  entity       BusinessEntity @relation(fields: [entityId], references: [id])
+  name         String
+  clientTypeId String?
+  clientType   ClientType?  @relation(fields: [clientTypeId], references: [id])
+  status       ClientStatus @default(ACTIVE)
+  country      String?
+  currency     Currency?
+  contactName  String?
+  contactEmail String?
+  contactPhone String?
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  transactions FinancialTransaction[]
+
+  @@unique([entityId, name])
+}
+
+enum VendorStatus {
+  ACTIVE
+  INACTIVE
+}
+
+// Optional on outflow transactions — the source Payment Tracker has no
+// vendor field today (just a free-text Expense Item), so this is forward
+// data model support per the spec, not a field the accounts team is forced
+// to fill in on day one.
+model Vendor {
+  id        String       @id @default(cuid())
+  entityId  String
+  entity    BusinessEntity @relation(fields: [entityId], references: [id])
+  name      String
+  country   String?
+  currency  Currency?
+  status    VendorStatus @default(ACTIVE)
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  transactions FinancialTransaction[]
+
+  @@unique([entityId, name])
+}
+
+// ── Financial transactions (the unified model — no monthly tables) ───
+
+enum TransactionType {
+  INFLOW // one row per client deal/receipt (was Inflow Tracker)
+  OUTFLOW // one row per expense (was Payment Tracker)
+}
+
+// Mirrors the workbook's Status formula exactly:
+// paid<=0 -> PENDING, paid>=amount -> PAID, else -> PARTIAL.
+enum TransactionStatus {
+  PENDING
+  PARTIAL
+  PAID
+}
+
+model FinancialTransaction {
+  id              String            @id @default(cuid())
+  entityId        String
+  entity          BusinessEntity    @relation(fields: [entityId], references: [id])
+  transactionType TransactionType
+  transactionDate DateTime          @db.Date
+
+  // Original currency is always preserved — reporting-currency conversion
+  // is a read-time projection, never written back over this value.
+  originalAmount   Decimal  @db.Decimal(14, 2)
+  originalCurrency Currency
+
+  // Outflow-only fields
+  categoryId    String?
+  category      FinancialCategory? @relation(fields: [categoryId], references: [id])
+  expenseTypeId String?
+  expenseType   ExpenseType?       @relation(fields: [expenseTypeId], references: [id])
+  vendorId      String?
+  vendor        Vendor?            @relation(fields: [vendorId], references: [id])
+
+  // Inflow-only fields
+  clientId     String?
+  client       Client? @relation(fields: [clientId], references: [id])
+  closedByName String? // "Closed By (BD)" — free text in the source data, not a User FK
+
+  description     String // Expense Item (outflow) / Service-Project (inflow)
+  referenceNumber String?
+  remarks         String?
+
+  // paidAmount/status are a deliberate, bounded denormalization: recomputed
+  // transactionally inside the same DB write whenever a Payment row changes
+  // (see the Payment model), never edited directly. This is NOT the same
+  // thing as the workbook's separate hand-maintained summary sheets — those
+  // are fully replaced by live aggregation queries in Phase 3/4. This cache
+  // exists only so a single transaction's own status can be read without a
+  // join+SUM on every list row.
+  paidAmount Decimal           @default(0) @db.Decimal(14, 2)
+  status     TransactionStatus @default(PENDING)
+
+  createdById String
+  createdBy   User    @relation("TransactionCreatedBy", fields: [createdById], references: [id])
+  updatedById String?
+  updatedBy   User?   @relation("TransactionUpdatedBy", fields: [updatedById], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  payments Payment[]
+
+  @@index([entityId, transactionType, transactionDate])
+  @@index([categoryId])
+  @@index([clientId])
+  @@index([vendorId])
+  @@index([status])
+}
+
+// Every partial/full settlement — for BOTH outflow payments and inflow
+// receipts — is one row here. Paid = SUM(payments) for a transaction;
+// Balance = originalAmount - Paid. This single ledger is what lets the
+// spec's "multiple partial receipts against one deal" requirement work for
+// inflows the same way multi-installment expense payments work for
+// outflows, instead of the workbook's single "Amount Paid" cell per row.
+model Payment {
+  id              String        @id @default(cuid())
+  transactionId   String
+  transaction     FinancialTransaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  amount          Decimal       @db.Decimal(14, 2)
+  currency        Currency
+  paymentDate     DateTime      @db.Date
+  paymentMethodId String?
+  paymentMethod   PaymentMethod? @relation(fields: [paymentMethodId], references: [id])
+  referenceNumber String?
+  notes           String?
+  createdById     String
+  createdBy       User          @relation(fields: [createdById], references: [id])
+  createdAt       DateTime      @default(now())
+
+  @@index([transactionId])
+}
+
+// ── Audit ────────────────────────────────────────────────────────────
+
+enum AuditAction {
+  CREATE
+  UPDATE
+  DELETE
+  PAYMENT_RECORDED
+  PAYMENT_UPDATED
+  PAYMENT_REVERSED
+  STATUS_CHANGED
+  CATEGORY_CHANGED
+  CLIENT_CHANGED
+  EXPORT
+  IMPORT
+  FX_RATE_UPDATED
+}
+
+// Append-only. actorUserId/actorEmail are deliberately plain fields, not a
+// relation, the same way hrms's AuditEvent keeps actor identity even after
+// the acting User row is later deleted — audit history must survive user
+// deletion.
+model AuditEvent {
+  id           String      @id @default(cuid())
+  entityType   String // model name, e.g. "FinancialTransaction"
+  entityId     String
+  action       AuditAction
+  actorUserId  String?
+  actorEmail   String?
+  before       Json?
+  after        Json?
+  metadata     Json?
+  createdAt    DateTime    @default(now())
+
+  @@index([entityType, entityId])
+  @@index([createdAt])
+}
