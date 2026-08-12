@@ -55,43 +55,22 @@ export default async function TransactionDetailPage({ params }: { params: Promis
         <StatusBadge status={txn.status} />
       </div>
 
-      <div className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
-        <Card>
-          <CardHeader className="pb-1">
-            <CardTitle className="text-xs font-normal text-muted-foreground">
-              {isInflow ? "Deal Value" : "Amount Due"}
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="pt-0 text-lg font-semibold">
-            {formatMoney(txn.originalAmount, txn.originalCurrency)}
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-1">
-            <CardTitle className="text-xs font-normal text-muted-foreground">
-              {isInflow ? "Received" : "Paid"}
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="pt-0 text-lg font-semibold">
-            {formatMoney(txn.paidAmount, txn.originalCurrency)}
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-1">
-            <CardTitle className="text-xs font-normal text-muted-foreground">Balance</CardTitle>
-          </CardHeader>
-          <CardContent className="pt-0 text-lg font-semibold">{formatMoney(balance, txn.originalCurrency)}</CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-1">
-            <CardTitle className="text-xs font-normal text-muted-foreground">
-              {isInflow ? "% Collected" : "% Settled"}
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="pt-0 text-lg font-semibold">
-            {formatPercent(calculateCollectedFraction(txn.originalAmount, txn.paidAmount))}
-          </CardContent>
-        </Card>
+      <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <SummaryTile label={isInflow ? "Deal Value" : "Amount Due"} value={formatMoney(txn.originalAmount, txn.originalCurrency)} />
+        <SummaryTile
+          label={isInflow ? "Received" : "Paid"}
+          value={formatMoney(txn.paidAmount, txn.originalCurrency)}
+          tone="success"
+        />
+        <SummaryTile
+          label="Balance"
+          value={formatMoney(balance, txn.originalCurrency)}
+          tone={balance.gt(0) ? "warning" : "default"}
+        />
+        <SummaryTile
+          label={isInflow ? "% Collected" : "% Settled"}
+          value={formatPercent(calculateCollectedFraction(txn.originalAmount, txn.paidAmount))}
+        />
       </div>
 
       <Card className="mt-6">
@@ -195,6 +174,35 @@ export default async function TransactionDetailPage({ params }: { params: Promis
           </CardContent>
         </Card>
       )}
+    </div>
+  );
+}
+
+/** Compact figure tile — replaces four Card+Header+Content stacks that were
+    doing nothing but showing a label and a number. */
+function SummaryTile({
+  label,
+  value,
+  tone = "default",
+}: {
+  label: string;
+  value: string;
+  tone?: "default" | "success" | "warning";
+}) {
+  return (
+    <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
+      <p className="text-metadata">{label}</p>
+      <p
+        className={
+          tone === "success"
+            ? "mt-1 text-metric-sm text-success"
+            : tone === "warning"
+              ? "mt-1 text-metric-sm text-warning"
+              : "mt-1 text-metric-sm"
+        }
+      >
+        {value}
+      </p>
     </div>
   );
 }

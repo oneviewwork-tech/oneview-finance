@@ -69,7 +69,9 @@ export function KpiCard({
 
       <div className="mt-3 flex items-end justify-between gap-2">
         <div className="min-w-0">
-          <p className={cn("text-metric-sm tracking-tight tabular-nums", styles.value)}>{value}</p>
+          {/* Proportional figures — a stat-tile value is a standalone number,
+              not a column of them. */}
+          <p className={cn("text-metric-sm tracking-tight proportional-nums", styles.value)}>{value}</p>
           <p className="mt-0.5 truncate text-label text-muted-foreground">{label}</p>
           {sublabel && <p className="mt-0.5 truncate text-metadata">{sublabel}</p>}
           {comparisonLabel && hasDelta && <p className="mt-1 text-metadata">vs {comparisonLabel}</p>}

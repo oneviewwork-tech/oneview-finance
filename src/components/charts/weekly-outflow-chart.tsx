@@ -17,7 +17,9 @@ export interface WeeklyBarDatum {
 // uses the whole card instead of hugging the left edge. Bar thickness is
 // capped in user units and centred within each slot.
 const SVG_WIDTH = 520;
-const MAX_BAR_WIDTH = 44;
+// Bars are capped rather than filling their slot — the leftover band is air,
+// which is what stops a bar chart reading as heavy blocks.
+const MAX_BAR_WIDTH = 24;
 const SEGMENT_GAP = 3;
 const CORNER_RADIUS = 5;
 const PLOT_HEIGHT = 190;

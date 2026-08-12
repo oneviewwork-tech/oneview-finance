@@ -165,12 +165,26 @@ body {
   font-weight: 500;
   color: var(--color-muted-foreground);
 }
+/* The single number a view leads with — exactly one per page. Same sans as
+   everything else (a display/serif face here reads as off-brand decoration)
+   and proportional figures, since it stands alone rather than in a column. */
+@utility text-hero {
+  font-size: 3rem;
+  line-height: 1;
+  font-weight: 600;
+  letter-spacing: -0.025em;
+  font-variant-numeric: proportional-nums;
+}
+
+/* Proportional figures, deliberately. Equal-width digits make a large
+   standalone number like 121 look gappy; tabular-nums belongs where digits
+   stack vertically (table rows, axis ticks), not on a hero figure. */
 @utility text-metric {
   font-size: 1.625rem;
   line-height: 1.9rem;
   font-weight: 600;
   letter-spacing: -0.015em;
-  font-variant-numeric: tabular-nums;
+  font-variant-numeric: proportional-nums;
 }
 @utility text-metric-sm {
   font-size: 1.125rem;

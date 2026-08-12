@@ -55,7 +55,7 @@ export function HeroMetric({
           </div>
 
           <div className="mt-4 flex flex-wrap items-baseline gap-3">
-            <span className="text-metric text-foreground">{value}</span>
+            <span className="text-hero text-foreground">{value}</span>
             {hasDelta && (
               <span className={cn("inline-flex items-center gap-0.5 text-sm font-medium", deltaColor)}>
                 <DeltaIcon className="h-4 w-4" />

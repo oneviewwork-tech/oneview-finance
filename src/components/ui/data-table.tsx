@@ -75,52 +75,66 @@ export function DataTable<T>({
     setPage(0);
   }
 
+  // Search and pagination live inside the card's border rather than floating
+  // outside it, so a list reads as one object instead of three stacked ones.
   return (
-    <div>
+    <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
       {searchText && (
-        <div className="relative mb-3 max-w-xs">
-          <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            value={query}
-            onChange={(e) => {
-              setQuery(e.target.value);
-              setPage(0);
-            }}
-            placeholder={searchPlaceholder ?? "Search…"}
-            className="h-8 pl-8 text-[0.8125rem]"
-          />
+        <div className="flex items-center justify-between gap-3 border-b border-border px-3 py-2.5">
+          <div className="relative w-full max-w-xs">
+            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={query}
+              onChange={(e) => {
+                setQuery(e.target.value);
+                setPage(0);
+              }}
+              placeholder={searchPlaceholder ?? "Search…"}
+              className="h-8 pl-8 text-[0.8125rem]"
+            />
+          </div>
+          <span className="shrink-0 text-metadata tabular-nums">
+            {sorted.length} record{sorted.length === 1 ? "" : "s"}
+          </span>
         </div>
       )}
 
-      <div className="overflow-x-auto rounded-xl border border-border">
+      <div className="overflow-x-auto">
         <table className="w-full text-table">
-          <thead className="bg-muted/60 text-left text-xs uppercase tracking-wide text-muted-foreground">
-            <tr>
-              {columns.map((col) => (
-                <th
-                  key={col.key}
-                  className={cn(
-                    "select-none whitespace-nowrap px-3 py-2 font-medium",
-                    col.align === "right" && "text-right",
-                    col.sortValue && "cursor-pointer hover:text-foreground"
-                  )}
-                  onClick={() => toggleSort(col)}
-                >
-                  <span className={cn("inline-flex items-center gap-1", col.align === "right" && "flex-row-reverse")}>
-                    {col.header}
-                    {col.sortValue &&
-                      (sortKey === col.key ? (
-                        sortDir === "asc" ? (
-                          <ArrowUp className="h-3 w-3" />
+          {/* Sticky header: these lists run to 200 rows, and losing the column
+              labels while scrolling makes a wall of numbers unreadable. */}
+          <thead className="sticky top-0 z-10 bg-muted/70 text-left text-xs uppercase tracking-wide text-muted-foreground backdrop-blur">
+            <tr className="border-b border-border">
+              {columns.map((col) => {
+                const active = sortKey === col.key;
+                return (
+                  <th
+                    key={col.key}
+                    aria-sort={active ? (sortDir === "asc" ? "ascending" : "descending") : undefined}
+                    className={cn(
+                      "select-none whitespace-nowrap px-3.5 py-2.5 font-semibold transition-ui",
+                      col.align === "right" && "text-right",
+                      col.sortValue && "cursor-pointer hover:text-foreground",
+                      active && "text-foreground"
+                    )}
+                    onClick={() => toggleSort(col)}
+                  >
+                    <span className={cn("inline-flex items-center gap-1.5", col.align === "right" && "flex-row-reverse")}>
+                      {col.header}
+                      {col.sortValue &&
+                        (active ? (
+                          sortDir === "asc" ? (
+                            <ArrowUp className="h-3 w-3 text-brand" />
+                          ) : (
+                            <ArrowDown className="h-3 w-3 text-brand" />
+                          )
                         ) : (
-                          <ArrowDown className="h-3 w-3" />
-                        )
-                      ) : (
-                        <ArrowUpDown className="h-3 w-3 opacity-30" />
-                      ))}
-                  </span>
-                </th>
-              ))}
+                          <ArrowUpDown className="h-3 w-3 opacity-25" />
+                        ))}
+                    </span>
+                  </th>
+                );
+              })}
             </tr>
           </thead>
           <tbody className="divide-y divide-border-subtle">
@@ -131,7 +145,16 @@ export function DataTable<T>({
                 onClick={() => onRowClick?.(row)}
               >
                 {columns.map((col) => (
-                  <td key={col.key} className={cn("px-3 py-2.5", col.align === "right" && "text-right", col.className)}>
+                  <td
+                    key={col.key}
+                    className={cn(
+                      "px-3.5 py-3",
+                      // Right-aligned columns are the numeric ones; tabular
+                      // figures keep the digits in a straight column.
+                      col.align === "right" && "text-right tabular-nums",
+                      col.className
+                    )}
+                  >
                     {col.render(row)}
                   </td>
                 ))}
@@ -139,7 +162,7 @@ export function DataTable<T>({
             ))}
             {pageRows.length === 0 && (
               <tr>
-                <td colSpan={columns.length} className="px-3 py-10">
+                <td colSpan={columns.length} className="px-3.5 py-12">
                   {emptyState ?? <p className="text-center text-metadata">No results.</p>}
                 </td>
               </tr>
@@ -149,16 +172,16 @@ export function DataTable<T>({
       </div>
 
       {totalPages > 1 && (
-        <div className="mt-2 flex items-center justify-between text-metadata">
-          <span>
-            {sorted.length} record{sorted.length === 1 ? "" : "s"} · page {page + 1} of {totalPages}
+        <div className="flex items-center justify-between gap-3 border-t border-border px-3.5 py-2.5 text-metadata">
+          <span className="tabular-nums">
+            Page {page + 1} of {totalPages}
           </span>
-          <div className="flex gap-1">
+          <div className="flex gap-1.5">
             <button
               type="button"
               disabled={page === 0}
               onClick={() => setPage((p) => Math.max(0, p - 1))}
-              className="rounded-md border border-border px-2 py-1 transition-ui hover:bg-accent disabled:pointer-events-none disabled:opacity-40"
+              className="rounded-md border border-border px-2.5 py-1 font-medium transition-ui hover:bg-accent disabled:pointer-events-none disabled:opacity-40"
             >
               Previous
             </button>
@@ -166,7 +189,7 @@ export function DataTable<T>({
               type="button"
               disabled={page >= totalPages - 1}
               onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
-              className="rounded-md border border-border px-2 py-1 transition-ui hover:bg-accent disabled:pointer-events-none disabled:opacity-40"
+              className="rounded-md border border-border px-2.5 py-1 font-medium transition-ui hover:bg-accent disabled:pointer-events-none disabled:opacity-40"
             >
               Next
             </button>

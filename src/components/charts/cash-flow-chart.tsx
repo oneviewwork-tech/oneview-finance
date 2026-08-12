@@ -68,12 +68,14 @@ export function CashFlowChart({ data }: { data: CashFlowPoint[] }) {
         aria-label="Inflow versus outflow paid by month"
       >
         <defs>
+          {/* Area fills are a ~10% wash, never a saturated block — the lines
+              carry the reading, the fill only hints at volume. */}
           <linearGradient id="inflowFill" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor={STATUS_CHART_COLORS.PAID} stopOpacity="0.18" />
+            <stop offset="0%" stopColor={STATUS_CHART_COLORS.PAID} stopOpacity="0.10" />
             <stop offset="100%" stopColor={STATUS_CHART_COLORS.PAID} stopOpacity="0" />
           </linearGradient>
           <linearGradient id="outflowFill" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor={OUTFLOW_COLOR} stopOpacity="0.16" />
+            <stop offset="0%" stopColor={OUTFLOW_COLOR} stopOpacity="0.10" />
             <stop offset="100%" stopColor={OUTFLOW_COLOR} stopOpacity="0" />
           </linearGradient>
         </defs>
