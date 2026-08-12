@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname, useSearchParams } from "next/navigation";
 import {
   LayoutDashboard,
@@ -11,20 +12,22 @@ import {
   Database,
   UserCog,
   LogOut,
+  ChevronRight,
+  type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { logout } from "@/actions/auth.actions";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "./theme-toggle";
 
-const ICONS = {
+const ICONS: Record<string, LucideIcon> = {
   dashboard: LayoutDashboard,
   accounts: Wallet,
   fx: ArrowRightLeft,
   import: Upload,
   data: Database,
   users: UserCog,
-} as const;
+};
 
 type IconKey = keyof typeof ICONS;
 
@@ -43,18 +46,20 @@ export interface SidebarNavItem {
 }
 
 export function SidebarNav({
-  workspace,
   items,
   user,
 }: {
-  workspace: "intelligence" | "operations";
   items: SidebarNavItem[];
   user: { name: string; email: string; roleLabel: string };
 }) {
-  const [openKey, setOpenKey] = useState<string | null>(null);
-  const [userMenuOpen, setUserMenuOpen] = useState(false);
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  // Derived from the real URL, not the user's role — a Super Admin browsing
+  // /intelligence should see Finance View expanded, not Accounts, even
+  // though their role would technically permit either.
+  const activeKey: "intelligence" | "operations" = pathname.startsWith("/operations") ? "operations" : "intelligence";
+  const [manuallyOpened, setManuallyOpened] = useState<string | null>(null);
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
 
   function isChildActive(child: SidebarNavChild): boolean {
     const [childPath, childQuery] = child.href.split("?");
@@ -64,41 +69,49 @@ export function SidebarNav({
   }
 
   return (
-    <aside className="dark fixed inset-y-0 left-0 z-30 flex w-16 flex-col items-center border-r border-border bg-card py-3">
-      <Link href="/" className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-brand text-[0.6875rem] font-bold text-brand-foreground">
-        O
-      </Link>
+    <aside className="fixed inset-y-0 left-0 z-30 flex w-64 flex-col border-r border-border bg-card">
+      <div className="flex h-16 items-center gap-3 border-b border-border px-5">
+        <div className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-white">
+          <Image src="/logo-haris.jpg" alt="Haris & Co." width={32} height={32} className="h-full w-full object-cover" />
+        </div>
+        <div className="flex flex-col">
+          <span className="text-sm font-semibold tracking-tight">ONEVIEW</span>
+          <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Finance</span>
+        </div>
+      </div>
 
-      <p className="mt-5 text-[0.625rem] font-semibold uppercase tracking-wide text-muted-foreground">Main</p>
-
-      <nav className="mt-2 flex w-full flex-col items-center gap-1">
+      <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-4">
         {items.map((item) => {
           const Icon = ICONS[item.icon];
-          const active = item.key === workspace;
-          const open = openKey === item.key;
+          const active = item.key === activeKey;
+          const open = manuallyOpened === item.key || (manuallyOpened === null && active);
+
           return (
-            <div
-              key={item.key}
-              className="relative w-full px-2"
-              onMouseEnter={() => setOpenKey(item.key)}
-              onMouseLeave={() => setOpenKey((k) => (k === item.key ? null : k))}
-            >
-              <Link
-                href={item.href}
-                aria-current={active ? "page" : undefined}
+            <div key={item.key} className="space-y-0.5">
+              <div
                 className={cn(
-                  "flex h-10 w-full items-center justify-center rounded-md transition-ui",
-                  active ? "bg-accent text-foreground" : "text-muted-foreground hover:bg-accent/60 hover:text-foreground"
+                  "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-ui",
+                  active ? "bg-brand-subtle text-brand" : "text-muted-foreground hover:bg-accent hover:text-foreground"
                 )}
               >
-                <Icon className="h-[1.125rem] w-[1.125rem]" />
-              </Link>
+                <Link href={item.href} className="flex flex-1 items-center gap-3 focus-visible:outline-none">
+                  <Icon className="h-4 w-4 shrink-0" />
+                  {item.label}
+                </Link>
+                {item.children.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setManuallyOpened(open ? "" : item.key)}
+                    aria-label={open ? `Collapse ${item.label}` : `Expand ${item.label}`}
+                    className="rounded p-0.5 hover:bg-black/5 dark:hover:bg-white/10"
+                  >
+                    <ChevronRight className={cn("h-3.5 w-3.5 transition-transform", open && "rotate-90")} />
+                  </button>
+                )}
+              </div>
 
-              {open && (
-                <div className="absolute left-full top-0 z-40 ml-2 w-48 rounded-lg border border-border bg-card p-1.5 shadow-lg">
-                  <p className="px-2 py-1 text-[0.6875rem] font-semibold uppercase tracking-wide text-muted-foreground">
-                    {item.label}
-                  </p>
+              {open && item.children.length > 0 && (
+                <div className="ml-6 space-y-0.5 border-l border-border pl-3">
                   {item.children.map((child) => {
                     const ChildIcon = child.icon ? ICONS[child.icon] : null;
                     const childActive = isChildActive(child);
@@ -107,11 +120,11 @@ export function SidebarNav({
                         key={child.href}
                         href={child.href}
                         className={cn(
-                          "flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-ui",
-                          childActive ? "bg-accent text-foreground" : "text-foreground/90 hover:bg-accent/60"
+                          "flex items-center gap-2.5 rounded-md px-3 py-2 text-sm transition-ui",
+                          childActive ? "bg-accent font-medium text-foreground" : "text-muted-foreground hover:text-foreground"
                         )}
                       >
-                        {ChildIcon && <ChildIcon className="h-3.5 w-3.5 text-muted-foreground" />}
+                        {ChildIcon && <ChildIcon className="h-3.5 w-3.5" />}
                         {child.label}
                       </Link>
                     );
@@ -123,26 +136,31 @@ export function SidebarNav({
         })}
       </nav>
 
-      <div className="mt-auto flex w-full flex-col items-center gap-3">
-        <ThemeToggle />
+      <div className="space-y-3 border-t border-border p-3">
+        <div className="flex items-center justify-between px-2">
+          <ThemeToggle />
+        </div>
 
         <div className="relative" onMouseLeave={() => setUserMenuOpen(false)}>
           <button
             type="button"
             onClick={() => setUserMenuOpen((v) => !v)}
-            className="flex h-8 w-8 items-center justify-center rounded-full bg-secondary text-xs font-semibold text-secondary-foreground transition-ui hover:opacity-90"
-            aria-label="Account menu"
+            className="flex w-full items-center gap-3 rounded-lg p-2.5 transition-ui hover:bg-accent"
           >
-            {(user.name || user.email).slice(0, 1).toUpperCase()}
+            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-secondary text-xs font-semibold text-secondary-foreground">
+              {(user.name || user.email).slice(0, 1).toUpperCase()}
+            </div>
+            <div className="flex-1 overflow-hidden text-left">
+              <p className="truncate text-sm font-medium">{user.name || user.email}</p>
+              <p className="truncate text-xs text-muted-foreground">{user.roleLabel}</p>
+            </div>
           </button>
 
           {userMenuOpen && (
-            <div className="absolute bottom-0 left-full z-40 ml-2 w-56 rounded-lg border border-border bg-card p-3 shadow-lg">
-              <p className="text-sm font-medium">{user.name || user.email}</p>
-              <p className="mt-0.5 text-xs text-muted-foreground">{user.roleLabel}</p>
-              <form action={logout} className="mt-3">
-                <Button type="submit" variant="outline" size="sm" className="w-full justify-start gap-2">
-                  <LogOut className="h-3.5 w-3.5" />
+            <div className="absolute bottom-full left-0 right-0 mb-2 rounded-lg border border-border bg-popover p-2 shadow-lg">
+              <form action={logout}>
+                <Button type="submit" variant="ghost" size="sm" className="w-full justify-start gap-2">
+                  <LogOut className="h-4 w-4" />
                   Sign out
                 </Button>
               </form>

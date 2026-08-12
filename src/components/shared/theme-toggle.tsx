@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Moon, Sun } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { Sun, Moon } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 const STORAGE_KEY = "oneview-theme";
 
@@ -10,40 +10,25 @@ export function ThemeToggle() {
   const [theme, setTheme] = useState<"light" | "dark">("light");
 
   useEffect(() => {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    const initial = stored === "dark" || stored === "light" ? stored : "light";
+    const root = document.documentElement;
+    const saved = localStorage.getItem(STORAGE_KEY);
+    const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+    const initial = saved === "dark" || (!saved && prefersDark) ? "dark" : "light";
     setTheme(initial);
-    document.documentElement.classList.toggle("dark", initial === "dark");
+    root.classList.toggle("dark", initial === "dark");
   }, []);
 
-  function apply(next: "light" | "dark") {
+  function toggle() {
+    const root = document.documentElement;
+    const next = theme === "light" ? "dark" : "light";
     setTheme(next);
+    root.classList.toggle("dark", next === "dark");
     localStorage.setItem(STORAGE_KEY, next);
-    document.documentElement.classList.toggle("dark", next === "dark");
   }
 
   return (
-    <div className="inline-flex items-center gap-0.5 rounded-md border border-border bg-secondary/60 p-0.5">
-      {(
-        [
-          { value: "light", label: "Light theme", Icon: Sun },
-          { value: "dark", label: "Dark theme", Icon: Moon },
-        ] as const
-      ).map(({ value, label, Icon }) => (
-        <button
-          key={value}
-          type="button"
-          onClick={() => apply(value)}
-          aria-label={label}
-          aria-pressed={theme === value}
-          className={cn(
-            "flex h-6 w-6 items-center justify-center rounded-[5px] transition-ui focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-            theme === value ? "bg-card text-foreground shadow-xs" : "text-muted-foreground hover:text-foreground"
-          )}
-        >
-          <Icon className="h-3.5 w-3.5" />
-        </button>
-      ))}
-    </div>
+    <Button variant="ghost" size="icon-sm" onClick={toggle} aria-label="Toggle theme">
+      {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+    </Button>
   );
 }

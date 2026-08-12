@@ -14,7 +14,7 @@ function daysSince(date: Date): number {
 export function FxBanner({ context }: { context: FxBannerContext }) {
   if (!context.available) {
     return (
-      <div className="flex items-center gap-2.5 rounded-md border border-destructive/25 bg-destructive-subtle px-3.5 py-2.5 text-sm text-destructive">
+      <div className="flex items-center gap-2.5 rounded-xl border border-destructive/25 bg-destructive-subtle px-3.5 py-2.5 text-sm text-destructive">
         <AlertTriangle className="h-4 w-4 shrink-0" />
         <span>
           Exchange rate unavailable for this period. Combined totals can&rsquo;t be shown until a rate is set.
@@ -31,7 +31,7 @@ export function FxBanner({ context }: { context: FxBannerContext }) {
   const isStale = !isManual && age > STALE_AFTER_DAYS;
 
   return (
-    <div className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-md border border-border bg-card px-3.5 py-2.5">
+    <div className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl border border-border bg-card px-3.5 py-2.5">
       <div className="flex items-center gap-1.5 text-sm font-medium">
         <span className="text-muted-foreground">AED</span>
         <ArrowRight className="h-3 w-3 text-muted-foreground" />

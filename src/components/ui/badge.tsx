@@ -1,61 +1,52 @@
-import * as React from "react";
 import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/utils";
 
 const badgeVariants = cva(
-  "inline-flex items-center gap-1.5 rounded-md px-2 py-0.5 text-label",
+  "inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-xs font-medium transition-ui",
   {
     variants: {
       variant: {
-        neutral: "bg-muted text-muted-foreground",
+        default: "bg-secondary text-secondary-foreground",
+        // Alias of `default` — kept so existing callers across the app
+        // (master data toggles, vendor/client status, etc.) don't all need
+        // touching in the same pass as this visual refresh.
+        neutral: "bg-secondary text-secondary-foreground",
+        brand: "bg-brand-subtle text-brand",
         success: "bg-success-subtle text-success",
         warning: "bg-warning-subtle text-warning",
         destructive: "bg-destructive-subtle text-destructive",
-        brand: "bg-brand-subtle text-brand",
+        outline: "border border-border text-foreground",
+        ghost: "text-muted-foreground",
       },
     },
-    defaultVariants: { variant: "neutral" },
+    defaultVariants: {
+      variant: "neutral",
+    },
   }
 );
 
 export interface BadgeProps extends React.HTMLAttributes<HTMLSpanElement>, VariantProps<typeof badgeVariants> {
-  /** Renders a small identity dot before the label — status never relies on color alone once paired with the text, but the dot reinforces it at a glance. */
   dot?: boolean;
 }
-
-const DOT_COLOR: Record<string, string> = {
-  neutral: "bg-muted-foreground",
-  success: "bg-success",
-  warning: "bg-warning",
-  destructive: "bg-destructive",
-  brand: "bg-brand",
-};
 
 export function Badge({ className, variant, dot, children, ...props }: BadgeProps) {
   return (
     <span className={cn(badgeVariants({ variant }), className)} {...props}>
-      {dot && <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", DOT_COLOR[variant ?? "neutral"])} />}
+      {dot && (
+        <span
+          className={cn("h-1.5 w-1.5 rounded-full", {
+            "bg-success": variant === "success",
+            "bg-warning": variant === "warning",
+            "bg-destructive": variant === "destructive",
+            "bg-brand": variant === "brand",
+            "bg-muted-foreground": variant === "default" || variant === "neutral" || !variant,
+            "bg-current": variant === "outline" || variant === "ghost",
+          })}
+        />
+      )}
       {children}
     </span>
   );
 }
 
-const STATUS_VARIANT = {
-  PAID: "success",
-  PARTIAL: "warning",
-  PENDING: "destructive",
-} as const;
-
-const STATUS_LABEL = {
-  PAID: "Paid",
-  PARTIAL: "Partially paid",
-  PENDING: "Pending",
-} as const;
-
-export function StatusBadge({ status }: { status: keyof typeof STATUS_VARIANT }) {
-  return (
-    <Badge variant={STATUS_VARIANT[status]} dot>
-      {STATUS_LABEL[status]}
-    </Badge>
-  );
-}
+export { StatusBadge } from "./status-badge";

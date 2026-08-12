@@ -14,16 +14,15 @@ export default async function EntityOperationsHome({
   const entity = await requireEntityBySlug(entityCode);
   const base = `/operations/${entityCode}`;
 
-  const [inflow, outflow, clientCount, vendorCount] = await Promise.all([
+  const [inflow, outflow, clientCount, vendorCount, pendingCount] = await Promise.all([
     getInflowSummary(entity.id),
     getOutflowSummary(entity.id),
     prisma.client.count({ where: { entityId: entity.id } }),
     prisma.vendor.count({ where: { entityId: entity.id } }),
+    prisma.financialTransaction.count({
+      where: { entityId: entity.id, transactionType: "OUTFLOW", status: { not: "PAID" } },
+    }),
   ]);
-
-  const pendingCount = await prisma.financialTransaction.count({
-    where: { entityId: entity.id, transactionType: "OUTFLOW", status: { not: "PAID" } },
-  });
 
   return (
     <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">

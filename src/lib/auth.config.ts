@@ -2,11 +2,16 @@ import { NextResponse } from "next/server";
 import type { NextAuthConfig } from "next-auth";
 import type { UserRole } from "@prisma/client";
 
-// Edge-safe base config — no Prisma import here. middleware.ts runs on the
+// Edge-safe base config — no Prisma import here. proxy.ts runs on the
 // Edge runtime and can only use this file; the Credentials provider (which
 // needs Prisma + bcrypt, both Node-only) is layered on top of this in
 // auth.ts for Node-runtime usage (route handler, server components/actions).
 export const authConfig: NextAuthConfig = {
+  // Vercel terminates TLS and sets X-Forwarded-Host/Proto itself, so its
+  // host headers are trustworthy — without this, Auth.js rejects requests
+  // on preview deployment URLs (which don't match a fixed AUTH_URL) with
+  // an UntrustedHost error.
+  trustHost: true,
   session: {
     strategy: "jwt",
     // Financial data — a much shorter idle window than a typical consumer
@@ -26,7 +31,7 @@ export const authConfig: NextAuthConfig = {
       const path = request.nextUrl.pathname;
       const isAuthRoute = path === "/login";
       // Everything under /operations and /intelligence requires a session;
-      // this callback is what middleware.ts actually enforces (see there).
+      // this callback is what proxy.ts actually enforces (see there).
       if (isAuthRoute) return true;
       if (!isLoggedIn) return false;
       // A forced password change blocks every protected route until it's

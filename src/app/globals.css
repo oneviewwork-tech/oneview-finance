@@ -34,6 +34,9 @@
   --color-card-foreground: var(--card-foreground);
   --color-card: var(--card);
   --color-surface-sunken: var(--surface-sunken);
+  --color-surface-elevated: var(--surface-elevated);
+  --color-brand-muted: var(--brand-muted);
+  --color-destructive-foreground: var(--destructive-foreground);
   --radius-sm: calc(var(--radius) * 0.55);
   --radius-md: calc(var(--radius) * 0.75);
   --radius-lg: var(--radius);
@@ -42,6 +45,7 @@
   --shadow-sm: 0 1px 2px -1px oklch(0.2 0.03 258 / 0.06), 0 1px 3px 0 oklch(0.2 0.03 258 / 0.05);
   --shadow-md: 0 4px 8px -2px oklch(0.2 0.03 258 / 0.06), 0 2px 4px -2px oklch(0.2 0.03 258 / 0.04);
   --shadow-lg: 0 12px 24px -6px oklch(0.2 0.03 258 / 0.1), 0 4px 8px -4px oklch(0.2 0.03 258 / 0.05);
+  --shadow-xl: 0 20px 25px -5px oklch(0.2 0.03 258 / 0.12), 0 8px 10px -6px oklch(0.2 0.03 258 / 0.06);
 }
 
 :root {
@@ -55,6 +59,7 @@
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.19 0.014 260);
   --surface-sunken: oklch(0.965 0.004 255);
+  --surface-elevated: oklch(1 0 0);
 
   /* ONEVIEW blue — the primary brand accent. Confident, precise, not
      overly saturated or purple-leaning. Used for primary actions, selected
@@ -62,6 +67,7 @@
   --brand: oklch(0.482 0.163 258);
   --brand-foreground: oklch(0.99 0 0);
   --brand-subtle: oklch(0.94 0.028 258);
+  --brand-muted: oklch(0.96 0.015 258);
   --primary: var(--brand);
   --primary-foreground: var(--brand-foreground);
 
@@ -82,6 +88,7 @@
   /* Red = overdue / failed / negative movement / risk. */
   --destructive: oklch(0.56 0.2 25);
   --destructive-subtle: oklch(0.95 0.035 25);
+  --destructive-foreground: oklch(0.99 0 0);
 
   --border: oklch(0.9 0.005 255);
   --border-subtle: oklch(0.94 0.004 255);
@@ -97,10 +104,12 @@
   --popover: oklch(0.195 0.013 260);
   --popover-foreground: oklch(0.96 0.004 255);
   --surface-sunken: oklch(0.13 0.012 260);
+  --surface-elevated: oklch(0.22 0.015 260);
 
   --brand: oklch(0.66 0.15 258);
   --brand-foreground: oklch(0.14 0.02 260);
   --brand-subtle: oklch(0.28 0.05 258);
+  --brand-muted: oklch(0.24 0.04 258);
   --primary: var(--brand);
   --primary-foreground: var(--brand-foreground);
 
@@ -117,6 +126,7 @@
   --warning-subtle: oklch(0.3 0.06 75);
   --destructive: oklch(0.66 0.19 25);
   --destructive-subtle: oklch(0.3 0.06 25);
+  --destructive-foreground: oklch(0.14 0.02 260);
 
   --border: oklch(0.3 0.014 260);
   --border-subtle: oklch(0.24 0.012 260);
@@ -159,7 +169,7 @@ body {
   line-height: 1.9rem;
   font-weight: 600;
   letter-spacing: -0.015em;
-  font-variant-numeric: normal;
+  font-variant-numeric: tabular-nums;
 }
 @utility text-metric-sm {
   font-size: 1.125rem;
@@ -189,4 +199,30 @@ body {
 @utility transition-ui {
   transition-duration: 160ms;
   transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ── Scrollbar ──────────────────────────────────────────────────── */
+@layer base {
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: oklch(0.8 0.01 260 / 0.4); border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: oklch(0.7 0.01 260 / 0.5); }
+  .dark ::-webkit-scrollbar-thumb { background: oklch(0.35 0.01 260 / 0.5); }
+  .dark ::-webkit-scrollbar-thumb:hover { background: oklch(0.45 0.01 260 / 0.6); }
+}
+
+/* ── Focus styles ───────────────────────────────────────────────── */
+@layer base {
+  :focus-visible {
+    outline: 2px solid var(--color-ring);
+    outline-offset: 2px;
+  }
+}
+
+/* ── Selection ──────────────────────────────────────────────────── */
+@layer base {
+  ::selection {
+    background: var(--color-brand-subtle);
+    color: var(--color-brand);
+  }
 }

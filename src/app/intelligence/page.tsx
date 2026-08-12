@@ -97,7 +97,7 @@ export default async function IntelligencePage({
     const prev = previousCombined.combined;
 
     return (
-      <div className="space-y-5">
+      <div className="space-y-6">
         <PageHeader
           title="Finance View"
           subtitle={`India + UAE combined performance, ${rangeLabel}`}
@@ -107,7 +107,7 @@ export default async function IntelligencePage({
         <FxBanner context={fxContext} />
 
         {!c.available ? (
-          <Card className="rounded-2xl border-border/60 shadow-sm">
+          <Card>
             <CardContent className="py-10 text-center text-muted-foreground">
               Combined totals cannot be shown for this period because an exchange rate is missing. See the banner above.
             </CardContent>
@@ -129,7 +129,7 @@ export default async function IntelligencePage({
 
             <CombinedConversionSummary result={combined} currency={currency} />
 
-            <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
               <KpiCard
                 label="Total Inflow Received"
                 value={formatMoney(c.totalInflow, currency)}
@@ -171,7 +171,7 @@ export default async function IntelligencePage({
               <KpiCard label="Clients Closed" value={String(c.clientsClosed)} icon={Users} tone="brand" sublabel="Deals recorded this period" />
             </div>
 
-            <Card className="rounded-2xl border-border/60 shadow-sm">
+            <Card>
               <CardHeader>
                 <CardTitle>UAE vs India</CardTitle>
               </CardHeader>
@@ -208,7 +208,7 @@ export default async function IntelligencePage({
               </CardContent>
             </Card>
 
-            <Card className="rounded-2xl border-border/60 shadow-sm">
+            <Card>
               <CardHeader>
                 <CardTitle>UAE · India · Combined</CardTitle>
               </CardHeader>
@@ -318,7 +318,7 @@ export default async function IntelligencePage({
   const pendingTrend = monthly.slice(-6).map((m) => m.outflowPending.toNumber());
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-6">
       <PageHeader
         title="Finance View"
         subtitle={`${businessEntity.name} · ${currency} financial performance ${rangeLabel}`}
@@ -339,7 +339,7 @@ export default async function IntelligencePage({
         ]}
       />
 
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
         <KpiCard
           label="Total Inflow (Received)"
           value={formatMoney(overview.totalInflowReceived, currency)}
@@ -413,7 +413,7 @@ export default async function IntelligencePage({
         />
       </div>
 
-      <Card className="rounded-2xl border-border/60 shadow-sm">
+      <Card>
         <CardHeader>
           <CardTitle>Cash Flow Trend</CardTitle>
           <CardDescription>Inflow received vs outflow paid, last {cashFlowPoints.length} months</CardDescription>
@@ -430,8 +430,8 @@ export default async function IntelligencePage({
         </CardContent>
       </Card>
 
-      <div className="grid gap-3 lg:grid-cols-2">
-        <Card className="rounded-2xl border-border/60 shadow-sm">
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Card>
           <CardHeader>
             <CardTitle>Weekly Payment Status</CardTitle>
           </CardHeader>
@@ -482,7 +482,7 @@ export default async function IntelligencePage({
             </table>
           </CardContent>
         </Card>
-        <Card className="rounded-2xl border-border/60 shadow-sm">
+        <Card>
           <CardHeader>
             <CardTitle>Payment Progress</CardTitle>
           </CardHeader>
@@ -530,7 +530,7 @@ export default async function IntelligencePage({
       {/* Mirrors the workbook Dashboard's INFLOW SUMMARY block, which the
           earlier UI pass never surfaced even though getInflowSummary already
           computed every one of these figures. */}
-      <Card className="rounded-2xl border-border/60 shadow-sm">
+      <Card>
         <CardHeader>
           <CardTitle>Inflow Summary</CardTitle>
           <CardDescription>Client deals closed and collection performance {rangeLabel}</CardDescription>
@@ -561,7 +561,7 @@ export default async function IntelligencePage({
         </CardContent>
       </Card>
 
-      <Card className="rounded-2xl border-border/60 shadow-sm">
+      <Card>
         <CardHeader>
           <CardTitle>Expense by Category</CardTitle>
         </CardHeader>
@@ -614,7 +614,7 @@ export default async function IntelligencePage({
         </CardContent>
       </Card>
 
-      <Card className="rounded-2xl border-border/60 shadow-sm">
+      <Card>
         <CardHeader>
           <CardTitle>Department Payment Status</CardTitle>
           <CardDescription>
@@ -664,7 +664,7 @@ export default async function IntelligencePage({
         </CardContent>
       </Card>
 
-      <Card className="rounded-2xl border-border/60 shadow-sm">
+      <Card>
         <CardHeader>
           <CardTitle>Receivables</CardTitle>
         </CardHeader>
@@ -743,11 +743,9 @@ function SummaryStat({
 
 function PageHeader({ title, subtitle, controls }: { title: string; subtitle: string; controls: React.ReactNode }) {
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3">
+    <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
       <div>
-        <h1 className="bg-gradient-to-r from-violet-600 via-indigo-600 to-blue-600 bg-clip-text text-[1.75rem] font-extrabold leading-tight tracking-[-0.02em] text-transparent dark:from-violet-400 dark:via-indigo-400 dark:to-blue-400">
-          {title}
-        </h1>
+        <h1 className="text-page-title">{title}</h1>
         <p className="mt-0.5 text-page-subtitle">{subtitle}</p>
       </div>
       {controls}

@@ -9,9 +9,9 @@ export default async function OperationsLayout({ children }: { children: React.R
   if (!canAccessOperations(user.role)) redirect("/intelligence");
 
   return (
-    <div className="min-h-screen bg-surface-sunken pl-16">
-      <Sidebar workspace="operations" />
-      <main className="mx-auto max-w-7xl px-5 py-6">
+    <div className="min-h-screen bg-surface-sunken pl-64">
+      <Sidebar />
+      <main className="mx-auto max-w-7xl px-5 py-6 sm:px-6 lg:px-8">
         <Suspense fallback={children}>
           <PageTransition>{children}</PageTransition>
         </Suspense>
