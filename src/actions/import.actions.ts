@@ -99,9 +99,22 @@ export async function commitImportAction(formData: FormData): Promise<ActionResu
   const entity = await prisma.businessEntity.findUnique({ where: { id: parsed.data.entityId } });
   if (!entity) return actionError("Entity not found");
   const actor = await requireEntityWrite(entity.code);
+
+  // Currency comes from the entity, never from the submitted form. The two
+  // workbooks are structurally identical and differ only in currency, so a
+  // stale or tampered field here would write (say) India's INR rows tagged
+  // AED — which the combined dashboard would then convert as if they were
+  // AED, inflating India's contribution ~23x. The entity's base currency is
+  // the only authoritative source.
+  if (parsed.data.originalCurrency !== entity.baseCurrency) {
+    return actionError(
+      `This workbook is being imported into ${entity.name}, whose currency is ${entity.baseCurrency}. Re-run the preview and try again.`
+    );
+  }
+
   const result = await commitImport({
     entityId: parsed.data.entityId,
-    originalCurrency: parsed.data.originalCurrency,
+    originalCurrency: entity.baseCurrency,
     outflowRows: outflowRows.map(fromClientOutflowRow),
     inflowRows: inflowRows.map(fromClientInflowRow),
     sourceFileName: parsed.data.sourceFileName,
