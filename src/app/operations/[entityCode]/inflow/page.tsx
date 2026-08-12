@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { requireEntityBySlug } from "@/lib/entities";
 import { calculateCollectedFraction } from "@/domain/finance/calculations";
 import { Button } from "@/components/ui/button";
+import { ExportButton } from "@/components/finance/export-button";
 import { InflowTable } from "./inflow-table";
 
 export default async function InflowListPage({ params }: { params: Promise<{ entityCode: string }> }) {
@@ -32,9 +33,12 @@ export default async function InflowListPage({ params }: { params: Promise<{ ent
     <div>
       <div className="flex items-center justify-between">
         <h2 className="text-section-title">Inflow · clients closed and payments received</h2>
-        <Link href={`/operations/${entityCode}/inflow/new`}>
-          <Button size="sm">Add inflow</Button>
-        </Link>
+        <div className="flex items-center gap-2">
+          <ExportButton entityId={entity.id} type="INFLOW" />
+          <Link href={`/operations/${entityCode}/inflow/new`}>
+            <Button size="sm">Add inflow</Button>
+          </Link>
+        </div>
       </div>
 
       <div className="mt-4">

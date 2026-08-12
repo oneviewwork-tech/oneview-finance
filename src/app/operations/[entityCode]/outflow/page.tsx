@@ -2,6 +2,7 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { requireEntityBySlug } from "@/lib/entities";
 import { Button } from "@/components/ui/button";
+import { ExportButton } from "@/components/finance/export-button";
 import { OutflowTable } from "./outflow-table";
 
 export default async function OutflowListPage({ params }: { params: Promise<{ entityCode: string }> }) {
@@ -31,9 +32,12 @@ export default async function OutflowListPage({ params }: { params: Promise<{ en
     <div>
       <div className="flex items-center justify-between">
         <h2 className="text-section-title">Outflow · expenses and payments</h2>
-        <Link href={`/operations/${entityCode}/outflow/new`}>
-          <Button size="sm">Add expense</Button>
-        </Link>
+        <div className="flex items-center gap-2">
+          <ExportButton entityId={entity.id} type="OUTFLOW" />
+          <Link href={`/operations/${entityCode}/outflow/new`}>
+            <Button size="sm">Add expense</Button>
+          </Link>
+        </div>
       </div>
 
       <div className="mt-4">

@@ -9,8 +9,8 @@ export default async function ImportPage() {
 
   return (
     <div className="max-w-4xl">
-      <h1 className="text-2xl font-semibold">Import from Zoho Sheets</h1>
-      <p className="mt-1 text-muted-foreground">
+      <h1 className="text-page-title">Import from Zoho Sheets</h1>
+      <p className="mt-1 text-page-subtitle">
         Upload a ONEVIEW Finance-format workbook (Payment Tracker + Inflow Tracker sheets). Nothing is written to the
         database until you review the preview and confirm.
       </p>

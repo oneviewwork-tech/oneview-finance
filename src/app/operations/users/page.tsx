@@ -19,8 +19,8 @@ export default async function UsersPage() {
 
   return (
     <div className="max-w-4xl">
-      <h1 className="text-2xl font-semibold">Users</h1>
-      <p className="mt-1 text-muted-foreground">
+      <h1 className="text-page-title">Users</h1>
+      <p className="mt-1 text-page-subtitle">
         Create and manage accounts. Each role is scoped to exactly what that person needs — UAE and India finance
         users never see each other&rsquo;s data, and only Super Admins can manage users.
       </p>

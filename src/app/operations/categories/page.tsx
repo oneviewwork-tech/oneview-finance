@@ -26,8 +26,8 @@ export default async function MasterDataPage() {
 
   return (
     <div>
-      <h1 className="text-2xl font-semibold">Master Data</h1>
-      <p className="mt-1 text-muted-foreground">
+      <h1 className="text-page-title">Master Data</h1>
+      <p className="mt-1 text-page-subtitle">
         Shared across UAE and India. Deactivate an item instead of
         deleting it if it&rsquo;s already used on past transactions.
       </p>

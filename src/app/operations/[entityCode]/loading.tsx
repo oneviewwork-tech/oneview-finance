@@ -4,7 +4,7 @@ export default function EntityOperationsLoading() {
   return (
     <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
       {Array.from({ length: 5 }).map((_, i) => (
-        <div key={i} className="rounded-lg border border-border bg-card p-4">
+        <div key={i} className="rounded-xl border border-border bg-card p-4">
           <div className="flex items-center justify-between">
             <Skeleton className="h-3.5 w-14" />
             <Skeleton className="h-6 w-6 rounded-md" />

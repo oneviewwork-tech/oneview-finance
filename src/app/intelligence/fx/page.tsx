@@ -17,8 +17,8 @@ export default async function FxManagementPage() {
   return (
     <div className="max-w-3xl space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold">Exchange Rate</h1>
-        <p className="mt-1 text-muted-foreground">
+        <h1 className="text-page-title">Exchange Rate</h1>
+        <p className="mt-1 text-page-subtitle">
           AED ↔ INR conversion used by the Combined dashboard. Live rates are fetched automatically once per day; a
           manual entry for a given date always takes precedence over that date&rsquo;s live rate.
         </p>

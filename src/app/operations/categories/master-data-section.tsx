@@ -39,7 +39,7 @@ export function MasterDataSection({
   const fieldErrors = state && !state.success ? state.fieldErrors : undefined;
 
   return (
-    <div className="rounded-xl border border-border p-5">
+    <div className="rounded-xl border border-border bg-card p-5">
       <h3 className="font-semibold">{title}</h3>
       <p className="mt-0.5 text-sm text-muted-foreground">{description}</p>
 

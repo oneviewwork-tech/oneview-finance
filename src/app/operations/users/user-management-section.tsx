@@ -26,7 +26,7 @@ export function UserManagementSection({ users, currentUserId }: { users: UserRow
   return (
     <div className="space-y-6">
       <CreateUserForm />
-      <div className="rounded-xl border border-border">
+      <div className="rounded-xl border border-border bg-card">
         <ul className="divide-y divide-border">
           {users.map((user) => (
             <UserRowItem key={user.id} user={user} isSelf={user.id === currentUserId} />
@@ -51,7 +51,7 @@ function CreateUserForm() {
   const fieldErrors = state && !state.success ? state.fieldErrors : undefined;
 
   return (
-    <div className="rounded-xl border border-border p-5">
+    <div className="rounded-xl border border-border bg-card p-5">
       <h3 className="font-semibold">Add a user</h3>
       <p className="mt-0.5 text-sm text-muted-foreground">
         Set a temporary password — the user must change it the first time they sign in.

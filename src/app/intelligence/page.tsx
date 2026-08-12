@@ -32,6 +32,8 @@ import {
   getWeeklySummary,
 } from "@/services/finance/summary";
 import { getCombinedSummary, getFxBannerContext } from "@/services/finance/combined";
+import { getAlerts } from "@/services/finance/alerts";
+import { AlertsPanel } from "@/components/finance/alerts-panel";
 import { ensureTodayLiveRate } from "@/services/fx/exchange-rate.service";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { KpiCard } from "@/components/finance/kpi-card";
@@ -270,7 +272,17 @@ export default async function IntelligencePage({
   const slug = entitySlug(entity);
   const currency = businessEntity.baseCurrency;
 
-  const [overview, previousOverview, categorySummary, weeklySummary, receivables, monthly, inflowSummary, departmentStatus] =
+  const [
+    overview,
+    previousOverview,
+    categorySummary,
+    weeklySummary,
+    receivables,
+    monthly,
+    inflowSummary,
+    departmentStatus,
+    alerts,
+  ] =
     await Promise.all([
       getDashboardOverview(businessEntity.id, range),
       getDashboardOverview(businessEntity.id, previousRange),
@@ -280,6 +292,8 @@ export default async function IntelligencePage({
       getMonthlySummary(businessEntity.id),
       getInflowSummary(businessEntity.id, range),
       getDepartmentPaymentStatus(businessEntity.id, range),
+      // Not range-scoped on purpose — see getAlerts().
+      getAlerts(businessEntity.id),
     ]);
 
   const departmentsFullyPaid = departmentStatus.filter((d) => d.fullyPaid).length;
@@ -410,6 +424,30 @@ export default async function IntelligencePage({
           sublabel="Deals not fully collected"
           icon={HandCoins}
           href={`/operations/${slug}/inflow`}
+        />
+      </div>
+
+      {/* Ageing sits high on the page and ignores the period filter — overdue
+          money is the thing you most need to see, and hiding it because the
+          user is looking at "This Month" would defeat the point. */}
+      <div className="grid gap-4 lg:grid-cols-2">
+        <AlertsPanel
+          title="Receivables Ageing"
+          description="Money owed to us by clients, by age"
+          ageing={alerts.receivablesAgeing}
+          overdueTotal={alerts.receivablesOverdue}
+          items={alerts.topOverdueReceivables}
+          currency={currency}
+          emptyMessage="Every client balance is fully collected."
+        />
+        <AlertsPanel
+          title="Payables Ageing"
+          description="Expenses we still owe, by age"
+          ageing={alerts.payablesAgeing}
+          overdueTotal={alerts.payablesOverdue}
+          items={alerts.topOverduePayables}
+          currency={currency}
+          emptyMessage="No outstanding expenses — everything is settled."
         />
       </div>
 

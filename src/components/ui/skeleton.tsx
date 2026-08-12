@@ -19,7 +19,7 @@ export function KpiCardSkeleton() {
 
 export function ChartCardSkeleton({ height = 180 }: { height?: number }) {
   return (
-    <div className="rounded-lg border border-border bg-card p-4">
+    <div className="rounded-xl border border-border bg-card p-4">
       <Skeleton className="h-4 w-32" />
       <Skeleton className="mt-4 w-full" style={{ height }} />
     </div>
@@ -28,7 +28,7 @@ export function ChartCardSkeleton({ height = 180 }: { height?: number }) {
 
 export function TableCardSkeleton({ rows = 5 }: { rows?: number }) {
   return (
-    <div className="rounded-lg border border-border bg-card p-4">
+    <div className="rounded-xl border border-border bg-card p-4">
       <Skeleton className="h-4 w-32" />
       <div className="mt-4 space-y-2.5">
         {Array.from({ length: rows }).map((_, i) => (

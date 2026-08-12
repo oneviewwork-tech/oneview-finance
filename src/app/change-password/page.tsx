@@ -16,7 +16,7 @@ export default async function ChangePasswordPage() {
           </span>
         </div>
 
-        <div className="rounded-lg border border-border bg-card p-6 shadow-sm">
+        <div className="rounded-xl border border-border bg-card p-6 shadow-sm">
           <h1 className="text-section-title">
             {session.user.mustChangePassword ? "Set a new password" : "Change your password"}
           </h1>

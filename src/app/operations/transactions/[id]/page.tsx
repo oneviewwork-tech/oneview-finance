@@ -50,7 +50,7 @@ export default async function TransactionDetailPage({ params }: { params: Promis
             {txn.entity.name} · {isInflow ? "Inflow" : "Outflow"}
             {!isInflow && ` · ${weekLabel(txn.transactionDate)}`}
           </p>
-          <h1 className="text-2xl font-semibold">{txn.description}</h1>
+          <h1 className="text-page-title">{txn.description}</h1>
         </div>
         <StatusBadge status={txn.status} />
       </div>
