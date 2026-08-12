@@ -45,8 +45,42 @@ function buildCsp(nonce: string): string {
   ].join("; ");
 }
 
+/**
+ * Route gating lives here, not in authConfig's `authorized` callback.
+ *
+ * `authorized` only decides the outcome when NextAuth's middleware is used
+ * bare (`export default auth`). Once a handler is supplied — which it must
+ * be here, to mint the per-request CSP nonce — the handler's return value is
+ * what ships, so an unconditional NextResponse.next() silently discards
+ * `authorized`'s redirect and lets unauthenticated requests through to the
+ * page. Keeping both would mean two sources of truth for the same decision;
+ * this is the one that actually runs.
+ *
+ * Pages still call requireUser()/requireSession() independently — that is
+ * the real security boundary. This is the redirect layer that turns "not
+ * signed in" into the login page instead of an error page.
+ */
 export default auth((req) => {
-  // Reaching here means the `authorized` callback allowed the request.
+  const { pathname } = req.nextUrl;
+  const isLoggedIn = !!req.auth?.user;
+
+  if (!isLoggedIn) {
+    if (pathname !== "/login") {
+      const url = new URL("/login", req.nextUrl);
+      url.searchParams.set("callbackUrl", req.nextUrl.pathname + req.nextUrl.search);
+      return NextResponse.redirect(url);
+    }
+  } else {
+    // Signed in: keep them off the login page, and hold them on
+    // /change-password until a forced reset is done.
+    if (pathname === "/login") {
+      return NextResponse.redirect(new URL("/", req.nextUrl));
+    }
+    if (req.auth?.user?.mustChangePassword && pathname !== "/change-password") {
+      return NextResponse.redirect(new URL("/change-password", req.nextUrl));
+    }
+  }
+
   // Dev is left alone: Turbopack's HMR client needs 'unsafe-eval', and a
   // strict policy buys nothing on localhost.
   if (process.env.NODE_ENV !== "production") return NextResponse.next();
@@ -71,5 +105,20 @@ export const config = {
   // on the chooser instead of the login page. /login and /change-password are
   // included so they get the CSP header as well (the `authorized` callback
   // lets them through).
-  matcher: ["/", "/login", "/change-password", "/operations/:path*", "/intelligence/:path*"],
+  //
+  // The bare "/operations" and "/intelligence" are listed separately from
+  // their ":path*" forms: ":path*" does NOT match the parent segment on its
+  // own, so without these an anonymous visitor hitting /intelligence skipped
+  // the proxy entirely and got requireUser()'s error page instead of being
+  // redirected to /login. (No data leaked either way — requireUser throws —
+  // but the error page is the wrong answer to "you're not signed in".)
+  matcher: [
+    "/",
+    "/login",
+    "/change-password",
+    "/operations",
+    "/operations/:path*",
+    "/intelligence",
+    "/intelligence/:path*",
+  ],
 };

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname, useSearchParams } from "next/navigation";
@@ -60,6 +60,30 @@ export function SidebarNav({
   const activeKey: "intelligence" | "operations" = pathname.startsWith("/operations") ? "operations" : "intelligence";
   const [manuallyOpened, setManuallyOpened] = useState<string | null>(null);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const userMenuRef = useRef<HTMLDivElement>(null);
+  const userTriggerRef = useRef<HTMLButtonElement>(null);
+
+  // Click-outside + Escape, matching PopoverMenu. An earlier onMouseLeave
+  // version closed the menu whenever the pointer crossed the gap between the
+  // trigger and the panel, which made Sign out effectively unclickable.
+  useEffect(() => {
+    if (!userMenuOpen) return;
+    function onPointerDown(e: PointerEvent) {
+      if (!userMenuRef.current?.contains(e.target as Node)) setUserMenuOpen(false);
+    }
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") {
+        setUserMenuOpen(false);
+        userTriggerRef.current?.focus();
+      }
+    }
+    document.addEventListener("pointerdown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [userMenuOpen]);
 
   function isChildActive(child: SidebarNavChild): boolean {
     const [childPath, childQuery] = child.href.split("?");
@@ -141,24 +165,39 @@ export function SidebarNav({
           <ThemeToggle />
         </div>
 
-        <div className="relative" onMouseLeave={() => setUserMenuOpen(false)}>
+        <div ref={userMenuRef} className="relative">
           <button
+            ref={userTriggerRef}
             type="button"
+            aria-haspopup="menu"
+            aria-expanded={userMenuOpen}
             onClick={() => setUserMenuOpen((v) => !v)}
-            className="flex w-full items-center gap-3 rounded-lg p-2.5 transition-ui hover:bg-accent"
+            className={cn(
+              "flex w-full items-center gap-3 rounded-lg p-2.5 text-left transition-ui hover:bg-accent",
+              userMenuOpen && "bg-accent"
+            )}
           >
-            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-secondary text-xs font-semibold text-secondary-foreground">
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-secondary text-xs font-semibold text-secondary-foreground">
               {(user.name || user.email).slice(0, 1).toUpperCase()}
             </div>
-            <div className="flex-1 overflow-hidden text-left">
+            <div className="flex-1 overflow-hidden">
               <p className="truncate text-sm font-medium">{user.name || user.email}</p>
               <p className="truncate text-xs text-muted-foreground">{user.roleLabel}</p>
             </div>
+            <ChevronRight
+              className={cn("h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform", userMenuOpen && "-rotate-90")}
+            />
           </button>
 
           {userMenuOpen && (
-            <div className="absolute bottom-full left-0 right-0 mb-2 rounded-lg border border-border bg-popover p-2 shadow-lg">
-              <form action={logout}>
+            <div
+              role="menu"
+              className="absolute bottom-full left-0 right-0 mb-2 rounded-lg border border-border bg-popover p-1.5 shadow-lg animate-in fade-in-0 zoom-in-95 duration-150"
+            >
+              <div className="border-b border-border px-2 pb-2 pt-1">
+                <p className="truncate text-xs text-muted-foreground">{user.email}</p>
+              </div>
+              <form action={logout} className="pt-1.5">
                 <Button type="submit" variant="ghost" size="sm" className="w-full justify-start gap-2">
                   <LogOut className="h-4 w-4" />
                   Sign out

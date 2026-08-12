@@ -1,4 +1,3 @@
-import { NextResponse } from "next/server";
 import type { NextAuthConfig } from "next-auth";
 import type { UserRole } from "@prisma/client";
 
@@ -26,21 +25,13 @@ export const authConfig: NextAuthConfig = {
   },
   providers: [],
   callbacks: {
-    authorized: ({ auth: session, request }) => {
-      const isLoggedIn = !!session?.user;
-      const path = request.nextUrl.pathname;
-      const isAuthRoute = path === "/login";
-      // Everything under /operations and /intelligence requires a session;
-      // this callback is what proxy.ts actually enforces (see there).
-      if (isAuthRoute) return true;
-      if (!isLoggedIn) return false;
-      // A forced password change blocks every protected route until it's
-      // done — centralized here so no individual page can forget the check.
-      if (session.user.mustChangePassword && path !== "/change-password") {
-        return NextResponse.redirect(new URL("/change-password", request.nextUrl));
-      }
-      return true;
-    },
+    // No `authorized` callback here on purpose. It is only consulted when
+    // NextAuth's middleware runs bare (`export default auth`); proxy.ts has
+    // to supply a handler in order to mint a per-request CSP nonce, and a
+    // handler's return value supersedes `authorized`. Defining it here too
+    // would be dead code that reads like it's enforcing something. Route
+    // gating lives in proxy.ts; per-page/action enforcement lives in
+    // requireUser()/requireSession().
     jwt: async ({ token, user }) => {
       if (user) {
         token.role = user.role;
