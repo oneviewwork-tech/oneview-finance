@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { getCurrentUser } from "@/lib/current-user";
+import { requireEntityWrite } from "@/lib/rbac";
 import { writeAuditEvent } from "@/lib/audit";
 import { parseDateOnly } from "@/lib/date";
 import { actionError, actionSuccess, zodFieldErrors, type ActionResult } from "@/lib/action-result";
@@ -44,6 +44,8 @@ export async function createInflow(formData: FormData): Promise<ActionResult<{ i
   const entity = await prisma.businessEntity.findUnique({ where: { id: input.entityId } });
   if (!entity) return actionError("Entity not found");
 
+  const actor = await requireEntityWrite(entity.code);
+
   const dealValue = new Decimal(input.dealValue);
   const amountReceived = input.amountReceived ? new Decimal(input.amountReceived) : new Decimal(0);
   if (wouldOverpay(dealValue, new Decimal(0), amountReceived)) {
@@ -52,7 +54,6 @@ export async function createInflow(formData: FormData): Promise<ActionResult<{ i
     });
   }
 
-  const actor = await getCurrentUser();
   const transactionDate = parseDateOnly(input.transactionDate);
   const aggregate = computeTransactionAggregate(dealValue, amountReceived.gt(0) ? [amountReceived] : []);
 
@@ -142,6 +143,7 @@ export async function createOutflow(formData: FormData): Promise<ActionResult<{ 
     categoryId: formData.get("categoryId"),
     expenseTypeId: formData.get("expenseTypeId"),
     vendorId: formData.get("vendorId"),
+    departmentId: formData.get("departmentId"),
     amountDue: formData.get("amountDue"),
     payFull: formData.get("payFull") || "N",
     amountPaid: formData.get("amountPaid") || undefined,
@@ -156,6 +158,8 @@ export async function createOutflow(formData: FormData): Promise<ActionResult<{ 
   const entity = await prisma.businessEntity.findUnique({ where: { id: input.entityId } });
   if (!entity) return actionError("Entity not found");
 
+  const actor = await requireEntityWrite(entity.code);
+
   const amountDue = new Decimal(input.amountDue);
   // Mirrors the workbook's I9 formula exactly: Pay Full "Y" -> paid = amountDue,
   // else the typed partial amount (or 0 if nothing typed = still pending).
@@ -167,7 +171,6 @@ export async function createOutflow(formData: FormData): Promise<ActionResult<{ 
     });
   }
 
-  const actor = await getCurrentUser();
   const transactionDate = parseDateOnly(input.transactionDate);
   const paymentDate = input.paymentDate ? parseDateOnly(input.paymentDate) : transactionDate;
   const aggregate = computeTransactionAggregate(amountDue, paidNow.gt(0) ? [paidNow] : []);
@@ -183,6 +186,7 @@ export async function createOutflow(formData: FormData): Promise<ActionResult<{ 
         categoryId: input.categoryId,
         expenseTypeId: input.expenseTypeId,
         vendorId: input.vendorId,
+        departmentId: input.departmentId,
         description: input.description,
         referenceNumber: input.referenceNumber,
         remarks: input.remarks,
@@ -243,8 +247,13 @@ export async function recordPayment(formData: FormData): Promise<ActionResult> {
   if (!parsed.success) return actionError("Invalid input", zodFieldErrors(parsed.error));
   const input = parsed.data;
 
-  const txnRecord = await prisma.financialTransaction.findUnique({ where: { id: input.transactionId } });
+  const txnRecord = await prisma.financialTransaction.findUnique({
+    where: { id: input.transactionId },
+    include: { entity: true },
+  });
   if (!txnRecord) return actionError("Transaction not found");
+
+  const actor = await requireEntityWrite(txnRecord.entity.code);
 
   const amount = new Decimal(input.amount);
   if (wouldOverpay(txnRecord.originalAmount, txnRecord.paidAmount, amount)) {
@@ -253,7 +262,6 @@ export async function recordPayment(formData: FormData): Promise<ActionResult> {
     });
   }
 
-  const actor = await getCurrentUser();
   const beforeStatus = txnRecord.status;
 
   await prisma.$transaction(async (tx) => {
@@ -311,12 +319,12 @@ export async function reversePayment(formData: FormData): Promise<ActionResult> 
 
   const payment = await prisma.payment.findUnique({
     where: { id: parsed.data.paymentId },
-    include: { transaction: true },
+    include: { transaction: { include: { entity: true } } },
   });
   if (!payment) return actionError("Payment not found");
 
-  const actor = await getCurrentUser();
   const { transaction: txnRecord } = payment;
+  const actor = await requireEntityWrite(txnRecord.entity.code);
   const beforeStatus = txnRecord.status;
 
   await prisma.$transaction(async (tx) => {

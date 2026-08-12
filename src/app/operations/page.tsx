@@ -5,9 +5,12 @@ import { entitySlug } from "@/lib/entities";
 import { formatMoneyCompact } from "@/lib/format";
 import { getInflowSummary, getOutflowSummary } from "@/services/finance/summary";
 import { Card, CardContent } from "@/components/ui/card";
+import { requireUser, canAccessEntityData, canManageMasterData } from "@/lib/rbac";
 
 export default async function OperationsHome() {
-  const entities = await prisma.businessEntity.findMany({ orderBy: { code: "asc" } });
+  const user = await requireUser();
+  const allEntities = await prisma.businessEntity.findMany({ orderBy: { code: "asc" } });
+  const entities = allEntities.filter((e) => canAccessEntityData(user.role, e.code));
 
   const entitiesWithSummary = await Promise.all(
     entities.map(async (entity) => {
@@ -18,7 +21,7 @@ export default async function OperationsHome() {
 
   return (
     <div>
-      <h1 className="text-page-title">Financial Operations</h1>
+      <h1 className="text-page-title">Accounts</h1>
       <p className="text-page-subtitle">Enter and manage inflows, expenses and payments. This replaces the monthly Zoho Sheet.</p>
 
       <div className="mt-6 grid gap-3 sm:grid-cols-2">
@@ -51,9 +54,11 @@ export default async function OperationsHome() {
         ))}
       </div>
 
-      <Link href="/operations/categories" className="mt-5 inline-block text-label font-medium text-brand transition-ui hover:underline">
-        Manage master data (categories, expense types, payment methods, client types) →
-      </Link>
+      {canManageMasterData(user.role) && (
+        <Link href="/operations/categories" className="mt-5 inline-block text-label font-medium text-brand transition-ui hover:underline">
+          Manage master data (categories, expense types, payment methods, client types) →
+        </Link>
+      )}
     </div>
   );
 }

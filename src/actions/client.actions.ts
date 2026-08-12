@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import { getCurrentUser } from "@/lib/current-user";
+import { requireEntityWrite } from "@/lib/rbac";
 import { writeAuditEvent } from "@/lib/audit";
 import { actionError, actionSuccess, zodFieldErrors, type ActionResult } from "@/lib/action-result";
 import { clientSchema } from "@/validators/finance";
@@ -19,12 +19,15 @@ export async function createClient(formData: FormData): Promise<ActionResult<{ i
   });
   if (!parsed.success) return actionError("Invalid input", zodFieldErrors(parsed.error));
 
+  const entity = await prisma.businessEntity.findUnique({ where: { id: parsed.data.entityId } });
+  if (!entity) return actionError("Entity not found");
+  const actor = await requireEntityWrite(entity.code);
+
   const existing = await prisma.client.findUnique({
     where: { entityId_name: { entityId: parsed.data.entityId, name: parsed.data.name } },
   });
   if (existing) return actionError("A client with this name already exists for this entity");
 
-  const actor = await getCurrentUser();
   const result = await prisma.$transaction(async (tx) => {
     const client = await tx.client.create({
       data: {
@@ -53,9 +56,10 @@ export async function createClient(formData: FormData): Promise<ActionResult<{ i
 }
 
 export async function setClientStatus(id: string, status: "ACTIVE" | "INACTIVE"): Promise<ActionResult> {
-  const actor = await getCurrentUser();
+  const before = await prisma.client.findUniqueOrThrow({ where: { id }, include: { entity: true } });
+  const actor = await requireEntityWrite(before.entity.code);
+
   await prisma.$transaction(async (tx) => {
-    const before = await tx.client.findUniqueOrThrow({ where: { id } });
     const after = await tx.client.update({ where: { id }, data: { status } });
     await writeAuditEvent(tx, {
       entityType: "Client",

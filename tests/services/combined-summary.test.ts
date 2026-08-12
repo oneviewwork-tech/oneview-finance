@@ -12,6 +12,14 @@ beforeAll(async () => {
   const admin = await prisma.user.findFirstOrThrow({ where: { role: "SUPER_ADMIN" } });
   userId = admin.id;
 
+  // A prior interrupted run can leave this fixture behind, which would otherwise
+  // fail the unique `code` constraint below and skip straight to a broken afterAll.
+  const leftover = await prisma.businessEntity.findUnique({ where: { code: "_TESTCOMBINED" } });
+  if (leftover) {
+    await prisma.financialTransaction.deleteMany({ where: { entityId: leftover.id } });
+    await prisma.businessEntity.delete({ where: { id: leftover.id } });
+  }
+
   const entity = await prisma.businessEntity.create({
     data: { code: "_TESTCOMBINED", name: "_TEST Combined Entity", country: "Testland", baseCurrency: "AED" },
   });
@@ -54,6 +62,9 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
+  // Guard against an unassigned entityId (beforeAll threw before assigning it) turning
+  // the filter below into a no-op that would match — and delete — every transaction.
+  if (!entityId) return;
   await prisma.financialTransaction.deleteMany({ where: { entityId } });
   await prisma.exchangeRate.deleteMany({ where: { sourceDetail: { contains: "_TEST" } } });
   await prisma.businessEntity.delete({ where: { id: entityId } });

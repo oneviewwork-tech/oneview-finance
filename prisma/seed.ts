@@ -107,7 +107,7 @@ async function main() {
     },
   });
 
-  const passwordHash = await bcrypt.hash("SuperAdmin@2026", 10);
+  const passwordHash = await bcrypt.hash("SuperAdmin@2026", 12);
   await prisma.user.upsert({
     where: { email: "admin@oneviewfinance.local" },
     update: {},

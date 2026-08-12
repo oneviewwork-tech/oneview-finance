@@ -6,8 +6,11 @@ export interface WriteAuditEventInput {
   entityType: string;
   entityId: string;
   action: AuditAction;
-  actorUserId: string;
-  actorEmail: string;
+  // Nullable for pre-authentication events (a failed login against an
+  // email that isn't a real account still needs an audit trail, but there
+  // is no user id to attach it to).
+  actorUserId: string | null;
+  actorEmail: string | null;
   before?: unknown;
   after?: unknown;
   metadata?: unknown;

@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { Prisma } from "@prisma/client";
-import { getCurrentUser } from "@/lib/current-user";
+import { requireFxAccess } from "@/lib/rbac";
 import { parseDateOnly } from "@/lib/date";
 import { actionError, actionSuccess, zodFieldErrors, type ActionResult } from "@/lib/action-result";
 import { setManualRateSchema } from "@/validators/fx";
@@ -22,7 +22,7 @@ export async function setManualExchangeRate(formData: FormData): Promise<ActionR
     });
   }
 
-  const actor = await getCurrentUser();
+  const actor = await requireFxAccess();
   await setManualRate({
     baseCurrency: parsed.data.baseCurrency,
     quoteCurrency: parsed.data.quoteCurrency,
@@ -38,6 +38,7 @@ export async function setManualExchangeRate(formData: FormData): Promise<ActionR
 }
 
 export async function refreshLiveExchangeRate(): Promise<ActionResult> {
+  await requireFxAccess();
   try {
     await refreshLiveRates();
   } catch (err) {

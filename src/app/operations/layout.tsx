@@ -1,29 +1,16 @@
 import { Suspense } from "react";
-import Link from "next/link";
-import { AppHeader } from "@/components/shared/app-header";
+import { redirect } from "next/navigation";
+import { Sidebar } from "@/components/shared/sidebar";
 import { PageTransition } from "@/components/shared/page-transition";
-import { Button } from "@/components/ui/button";
+import { requireUser, canAccessOperations } from "@/lib/rbac";
 
-export default function OperationsLayout({ children }: { children: React.ReactNode }) {
+export default async function OperationsLayout({ children }: { children: React.ReactNode }) {
+  const user = await requireUser();
+  if (!canAccessOperations(user.role)) redirect("/intelligence");
+
   return (
-    <div className="min-h-screen bg-surface-sunken">
-      <AppHeader
-        workspace="operations"
-        actions={
-          <>
-            <Link href="/operations/import" className="hidden sm:block">
-              <Button variant="ghost" size="sm">
-                Import
-              </Button>
-            </Link>
-            <Link href="/operations/categories">
-              <Button variant="outline" size="sm">
-                Master Data
-              </Button>
-            </Link>
-          </>
-        }
-      />
+    <div className="min-h-screen bg-surface-sunken pl-16">
+      <Sidebar workspace="operations" />
       <main className="mx-auto max-w-7xl px-5 py-6">
         <Suspense fallback={children}>
           <PageTransition>{children}</PageTransition>

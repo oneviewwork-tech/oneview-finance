@@ -79,7 +79,7 @@ export function EntityComparisonChart({ metrics, entityCodes }: { metrics: Compa
                       y={barY}
                       width={Math.max(barLength, 2)}
                       height={BAR_HEIGHT}
-                      rx={4}
+                      rx={6}
                       fill={colorByEntity.get(v.entityCode)}
                     />
                     <text

@@ -375,7 +375,17 @@ interface MonthlyQueryRow {
   totalPaid: Prisma.Decimal;
 }
 
+// Callers only ever use the trailing 12 months (see intelligence/page.tsx's
+// .slice(-12) / .slice(-6)) — bounding the query to a generous 24-month
+// window keeps this a fast indexed range scan instead of an unbounded
+// full-history aggregation that gets slower every month the app is in use.
+const MONTHLY_SUMMARY_LOOKBACK_MONTHS = 24;
+
 export async function getMonthlySummary(entityId: string): Promise<MonthlySummaryRow[]> {
+  const since = new Date();
+  since.setUTCMonth(since.getUTCMonth() - MONTHLY_SUMMARY_LOOKBACK_MONTHS, 1);
+  since.setUTCHours(0, 0, 0, 0);
+
   const rows = await prisma.$queryRaw<MonthlyQueryRow[]>(Prisma.sql`
     SELECT
       TO_CHAR(date_trunc('month', "transactionDate"), 'YYYY-MM') AS "monthKey",
@@ -383,7 +393,7 @@ export async function getMonthlySummary(entityId: string): Promise<MonthlySummar
       COALESCE(SUM("originalAmount"), 0) AS "totalAmount",
       COALESCE(SUM("paidAmount"), 0) AS "totalPaid"
     FROM "FinancialTransaction"
-    WHERE "entityId" = ${entityId}
+    WHERE "entityId" = ${entityId} AND "transactionDate" >= ${since}
     GROUP BY "monthKey", "transactionType"
     ORDER BY "monthKey"
   `);
@@ -486,6 +496,81 @@ export async function getDashboardOverview(entityId: string, range?: DateRange):
     receivables: inflow.balanceReceivable,
     clientsClosed: inflow.clientsClosed,
   };
+}
+
+// ── Department payment status — not in the source workbook. Answers "of N
+// departments with activity this period, how many are fully paid, and which
+// are delayed?" Only departments with at least one tagged Outflow row in the
+// range appear; untagged transactions aren't attributable to any department. ──
+
+export interface DepartmentStatusRow {
+  departmentId: string;
+  departmentName: string;
+  totalDue: Prisma.Decimal;
+  paid: Prisma.Decimal;
+  pending: Prisma.Decimal;
+  percentPaid: Prisma.Decimal;
+  itemCount: number;
+  paidItemCount: number;
+  partialItemCount: number;
+  pendingItemCount: number;
+  fullyPaid: boolean;
+}
+
+export async function getDepartmentPaymentStatus(entityId: string, range?: DateRange): Promise<DepartmentStatusRow[]> {
+  const where = {
+    entityId,
+    transactionType: "OUTFLOW" as const,
+    departmentId: { not: null },
+    transactionDate: rangeFilter(range),
+  };
+
+  const [totals, statusGroups, departments] = await Promise.all([
+    prisma.financialTransaction.groupBy({
+      by: ["departmentId"],
+      where,
+      _sum: { originalAmount: true, paidAmount: true },
+      _count: true,
+    }),
+    prisma.financialTransaction.groupBy({
+      by: ["departmentId", "status"],
+      where,
+      _count: true,
+    }),
+    prisma.department.findMany({ orderBy: { sortOrder: "asc" } }),
+  ]);
+
+  const totalsByDept = new Map(totals.map((t) => [t.departmentId!, t]));
+  const statusByDept = new Map<string, Record<TransactionStatus, number>>();
+  for (const g of statusGroups) {
+    const key = g.departmentId!;
+    const entry = statusByDept.get(key) ?? { PAID: 0, PARTIAL: 0, PENDING: 0 };
+    entry[g.status] = g._count;
+    statusByDept.set(key, entry);
+  }
+
+  return departments
+    .map((dept) => {
+      const t = totalsByDept.get(dept.id);
+      const totalDue = t?._sum.originalAmount ?? new Decimal(0);
+      const paid = t?._sum.paidAmount ?? new Decimal(0);
+      const itemCount = t?._count ?? 0;
+      const statusCounts = statusByDept.get(dept.id) ?? { PAID: 0, PARTIAL: 0, PENDING: 0 };
+      return {
+        departmentId: dept.id,
+        departmentName: dept.name,
+        totalDue,
+        paid,
+        pending: totalDue.minus(paid),
+        percentPaid: calculateCollectedFraction(totalDue, paid),
+        itemCount,
+        paidItemCount: statusCounts.PAID,
+        partialItemCount: statusCounts.PARTIAL,
+        pendingItemCount: statusCounts.PENDING,
+        fullyPaid: itemCount > 0 && statusCounts.PAID === itemCount,
+      };
+    })
+    .filter((row) => row.itemCount > 0);
 }
 
 // Re-exported so callers can double-check a single row's status without a

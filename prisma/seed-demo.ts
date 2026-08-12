@@ -8,7 +8,8 @@
  *
  * Run: npm run db:seed-demo
  */
-import { PrismaClient, Prisma } from "@prisma/client";
+import { PrismaClient, Prisma, type UserRole } from "@prisma/client";
+import bcrypt from "bcryptjs";
 import { calculateStatus } from "../src/domain/finance/calculations";
 
 const prisma = new PrismaClient();
@@ -250,9 +251,34 @@ async function seedEntity(
   console.log(`${entityCode}: seeded ${outflowCount} outflow + ${inflowCount} inflow across ${MONTHS_BACK + 1} months`);
 }
 
+// One test account per non-SUPER_ADMIN role, so every permission boundary
+// (entity isolation, viewer read-only, admin-only master data/FX/users) can
+// actually be clicked through in the UI instead of only unit-tested.
+// All share the same known temporary password and force a change on first
+// login, same as the real SUPER_ADMIN seed in prisma/seed.ts.
+const TEST_USERS: { email: string; name: string; role: UserRole }[] = [
+  { email: "finance.admin@oneviewfinance.local", name: "Test Finance Admin", role: "FINANCE_ADMIN" },
+  { email: "uae.finance@oneviewfinance.local", name: "Test UAE Finance", role: "UAE_FINANCE_USER" },
+  { email: "india.finance@oneviewfinance.local", name: "Test India Finance", role: "INDIA_FINANCE_USER" },
+  { email: "viewer@oneviewfinance.local", name: "Test Management Viewer", role: "MANAGEMENT_VIEWER" },
+];
+
+async function seedTestUsers() {
+  const passwordHash = await bcrypt.hash("TestUser@2026", 12);
+  for (const u of TEST_USERS) {
+    await prisma.user.upsert({
+      where: { email: u.email },
+      update: {},
+      create: { email: u.email, name: u.name, role: u.role, passwordHash, mustChangePassword: true },
+    });
+  }
+  console.log(`Seeded ${TEST_USERS.length} per-role test users (password: TestUser@2026, forced change on first login).`);
+}
+
 async function main() {
   await seedEntity("UAE", "AED", UAE_OUTFLOW, UAE_INFLOW, UAE_VENDORS);
   await seedEntity("INDIA", "INR", INDIA_OUTFLOW, INDIA_INFLOW, INDIA_VENDORS);
+  await seedTestUsers();
   console.log("Demo data seed complete.");
 }
 

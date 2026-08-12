@@ -6,10 +6,11 @@ export default async function NewOutflowPage({ params }: { params: Promise<{ ent
   const { entityCode } = await params;
   const entity = await requireEntityBySlug(entityCode);
 
-  const [categories, expenseTypes, vendors, paymentMethods] = await Promise.all([
+  const [categories, expenseTypes, vendors, departments, paymentMethods] = await Promise.all([
     prisma.financialCategory.findMany({ where: { isActive: true }, orderBy: { sortOrder: "asc" } }),
     prisma.expenseType.findMany({ where: { isActive: true }, orderBy: { sortOrder: "asc" } }),
     prisma.vendor.findMany({ where: { entityId: entity.id, status: "ACTIVE" }, orderBy: { name: "asc" } }),
+    prisma.department.findMany({ where: { isActive: true }, orderBy: { sortOrder: "asc" } }),
     prisma.paymentMethod.findMany({ where: { isActive: true }, orderBy: { sortOrder: "asc" } }),
   ]);
 
@@ -27,6 +28,7 @@ export default async function NewOutflowPage({ params }: { params: Promise<{ ent
         categories={categories}
         expenseTypes={expenseTypes}
         vendors={vendors}
+        departments={departments}
         paymentMethods={paymentMethods}
       />
     </div>

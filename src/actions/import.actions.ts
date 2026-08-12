@@ -2,10 +2,16 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import { getCurrentUser } from "@/lib/current-user";
+import { requireEntityWrite } from "@/lib/rbac";
 import { actionError, actionSuccess, zodFieldErrors, type ActionResult } from "@/lib/action-result";
 import { previewImportSchema, commitImportSchema, rollbackImportSchema } from "@/validators/import";
-import { commitImport, previewImport, rollbackImportBatch, type CommitImportResult } from "@/services/import/import.service";
+import {
+  commitImport,
+  previewImport,
+  rollbackImportBatch,
+  getImportBatchEntityCodes,
+  type CommitImportResult,
+} from "@/services/import/import.service";
 import {
   fromClientInflowRow,
   fromClientOutflowRow,
@@ -36,6 +42,7 @@ export async function previewImportAction(formData: FormData): Promise<ActionRes
 
   const entity = await prisma.businessEntity.findUnique({ where: { id: parsed.data.entityId } });
   if (!entity) return actionError("Entity not found");
+  await requireEntityWrite(entity.code);
 
   let buffer: Buffer;
   try {
@@ -89,7 +96,9 @@ export async function commitImportAction(formData: FormData): Promise<ActionResu
     return actionError("Nothing selected to import");
   }
 
-  const actor = await getCurrentUser();
+  const entity = await prisma.businessEntity.findUnique({ where: { id: parsed.data.entityId } });
+  if (!entity) return actionError("Entity not found");
+  const actor = await requireEntityWrite(entity.code);
   const result = await commitImport({
     entityId: parsed.data.entityId,
     originalCurrency: parsed.data.originalCurrency,
@@ -108,8 +117,15 @@ export async function rollbackImportAction(formData: FormData): Promise<ActionRe
   const parsed = rollbackImportSchema.safeParse({ batchId: formData.get("batchId") });
   if (!parsed.success) return actionError("Invalid input", zodFieldErrors(parsed.error));
 
-  const actor = await getCurrentUser();
-  const result = await rollbackImportBatch(parsed.data.batchId, actor.id, actor.email);
+  const entityCodes = await getImportBatchEntityCodes(parsed.data.batchId);
+  if (entityCodes.length === 0) return actionError("Import batch not found");
+
+  let actor: Awaited<ReturnType<typeof requireEntityWrite>> | undefined;
+  for (const code of entityCodes) {
+    actor = await requireEntityWrite(code);
+  }
+
+  const result = await rollbackImportBatch(parsed.data.batchId, actor!.id, actor!.email);
   revalidatePath("/operations", "layout");
   return actionSuccess(result);
 }

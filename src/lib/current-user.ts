@@ -1,26 +1,17 @@
-import { prisma } from "@/lib/prisma";
+import { requireUser } from "@/lib/rbac";
 
 /**
- * TEMPORARY (Phase 2 -> Phase 6 bridge). NextAuth isn't wired up yet
- * (that's Phase 6: RBAC + Audit), but every write in this app requires a
- * real User row for created_by/audit attribution — the schema does not
- * allow a nullable "system" actor. Until real sessions exist, every
- * server action attributes writes to the seeded Super Admin.
+ * The real signed-in actor, resolved from the session (Phase 6). Kept as a
+ * thin re-export so every action that already imports getCurrentUser()
+ * keeps working unchanged — the return shape (a full User row) hasn't
+ * changed since the Phase 2 placeholder this replaced.
  *
- * When Phase 6 lands, this function's body gets replaced with a call to
- * `auth()` and a lookup of `session.user.id` — nothing that calls
- * `getCurrentUser()` today needs to change, since the return shape stays
- * the same.
+ * This only resolves *who* is acting — it does not check *whether* they're
+ * allowed to do what they're about to do. Actions that touch a specific
+ * entity's data must additionally call requireEntityWrite()/
+ * requireEntityAccess() from @/lib/rbac, which return the same user object
+ * so callers don't need two separate lookups.
  */
 export async function getCurrentUser() {
-  const user = await prisma.user.findFirst({
-    where: { role: "SUPER_ADMIN", isActive: true },
-    orderBy: { createdAt: "asc" },
-  });
-  if (!user) {
-    throw new Error(
-      "No active Super Admin user found — run `npm run db:seed` before using Financial Operations."
-    );
-  }
-  return user;
+  return requireUser();
 }

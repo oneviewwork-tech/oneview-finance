@@ -6,7 +6,7 @@ export function Skeleton({ className, ...props }: React.HTMLAttributes<HTMLDivEl
 
 export function KpiCardSkeleton() {
   return (
-    <div className="rounded-lg border border-border bg-card p-4">
+    <div className="rounded-2xl border border-border bg-card p-4">
       <div className="flex items-start justify-between gap-2">
         <Skeleton className="h-3 w-20" />
         <Skeleton className="h-6 w-6 rounded-md" />

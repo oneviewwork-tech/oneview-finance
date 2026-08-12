@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { entitySlug } from "@/lib/entities";
+import { requireEntityAccess } from "@/lib/rbac";
 import { formatDate, formatMoney, formatPercent } from "@/lib/format";
 import { calculateCollectedFraction } from "@/domain/finance/calculations";
 import { weekLabel } from "@/domain/finance/period";
@@ -30,6 +31,7 @@ export default async function TransactionDetailPage({ params }: { params: Promis
   ]);
 
   if (!txn) notFound();
+  await requireEntityAccess(txn.entity.code);
 
   const balance = txn.originalAmount.minus(txn.paidAmount);
   const isInflow = txn.transactionType === "INFLOW";

@@ -81,6 +81,7 @@ export const createOutflowSchema = z.object({
   categoryId: cuid,
   expenseTypeId: cuid,
   vendorId: optionalCuid,
+  departmentId: optionalCuid,
   amountDue: moneyString,
   payFull: z.enum(["Y", "N"]).default("N"),
   amountPaid: optionalMoneyString, // used when payFull = N and a partial amount was paid now

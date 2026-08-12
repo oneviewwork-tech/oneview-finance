@@ -9,8 +9,10 @@ import {
   Scale,
   Users,
 } from "lucide-react";
+import { redirect } from "next/navigation";
 import type { Currency } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { requireUser, canViewIntelligenceEntity, defaultIntelligenceEntity } from "@/lib/rbac";
 import { formatMoney, formatPercent } from "@/lib/format";
 import { entitySlug } from "@/lib/entities";
 import {
@@ -23,6 +25,7 @@ import { calculatePeriodChange } from "@/domain/finance/comparison";
 import {
   getCategorySummary,
   getDashboardOverview,
+  getDepartmentPaymentStatus,
   getInflowSummary,
   getMonthlySummary,
   getReceivables,
@@ -39,7 +42,7 @@ import { WeeklyOutflowChart } from "@/components/charts/weekly-outflow-chart";
 import { EntityComparisonChart } from "@/components/charts/entity-comparison-chart";
 import { STATUS_CHART_COLORS } from "@/lib/chart-palette";
 import { EmptyState } from "@/components/ui/empty-state";
-import { StatusBadge } from "@/components/ui/badge";
+import { Badge, StatusBadge } from "@/components/ui/badge";
 import { IntelligenceFilters } from "./filters";
 import { FxBanner } from "./fx-banner";
 import { CombinedConversionSummary } from "./combined-conversion-summary";
@@ -64,7 +67,16 @@ export default async function IntelligencePage({
   }>;
 }) {
   const params = await searchParams;
+  const user = await requireUser();
   const entity = params.entity === "UAE" || params.entity === "INDIA" ? params.entity : "ALL";
+  if (!canViewIntelligenceEntity(user.role, entity)) {
+    const fallback = defaultIntelligenceEntity(user.role);
+    const qs = new URLSearchParams(
+      Object.entries(params).filter((entry): entry is [string, string] => typeof entry[1] === "string")
+    );
+    qs.set("entity", fallback);
+    redirect(`/intelligence?${qs.toString()}`);
+  }
   const selection = parseRangeSelection(params);
   const range = resolveSelection(selection);
   const rangeLabel = describeSelectionLong(selection);
@@ -87,7 +99,7 @@ export default async function IntelligencePage({
     return (
       <div className="space-y-5">
         <PageHeader
-          title="Financial Intelligence"
+          title="Finance View"
           subtitle={`India + UAE combined performance, ${rangeLabel}`}
           controls={<IntelligenceFilters entity={entity} currency={currency} selection={selection} showCurrency />}
         />
@@ -95,7 +107,7 @@ export default async function IntelligencePage({
         <FxBanner context={fxContext} />
 
         {!c.available ? (
-          <Card>
+          <Card className="rounded-2xl border-border/60 shadow-sm">
             <CardContent className="py-10 text-center text-muted-foreground">
               Combined totals cannot be shown for this period because an exchange rate is missing. See the banner above.
             </CardContent>
@@ -159,7 +171,7 @@ export default async function IntelligencePage({
               <KpiCard label="Clients Closed" value={String(c.clientsClosed)} icon={Users} tone="brand" sublabel="Deals recorded this period" />
             </div>
 
-            <Card>
+            <Card className="rounded-2xl border-border/60 shadow-sm">
               <CardHeader>
                 <CardTitle>UAE vs India</CardTitle>
               </CardHeader>
@@ -196,7 +208,7 @@ export default async function IntelligencePage({
               </CardContent>
             </Card>
 
-            <Card>
+            <Card className="rounded-2xl border-border/60 shadow-sm">
               <CardHeader>
                 <CardTitle>UAE · India · Combined</CardTitle>
               </CardHeader>
@@ -258,7 +270,7 @@ export default async function IntelligencePage({
   const slug = entitySlug(entity);
   const currency = businessEntity.baseCurrency;
 
-  const [overview, previousOverview, categorySummary, weeklySummary, receivables, monthly, inflowSummary] =
+  const [overview, previousOverview, categorySummary, weeklySummary, receivables, monthly, inflowSummary, departmentStatus] =
     await Promise.all([
       getDashboardOverview(businessEntity.id, range),
       getDashboardOverview(businessEntity.id, previousRange),
@@ -267,7 +279,10 @@ export default async function IntelligencePage({
       getReceivables(businessEntity.id, range),
       getMonthlySummary(businessEntity.id),
       getInflowSummary(businessEntity.id, range),
+      getDepartmentPaymentStatus(businessEntity.id, range),
     ]);
+
+  const departmentsFullyPaid = departmentStatus.filter((d) => d.fullyPaid).length;
 
   // Trend is deliberately NOT scoped to the selected range: a cash-flow
   // trend needs several months of context to mean anything, and the range
@@ -305,7 +320,7 @@ export default async function IntelligencePage({
   return (
     <div className="space-y-5">
       <PageHeader
-        title="Financial Intelligence"
+        title="Finance View"
         subtitle={`${businessEntity.name} · ${currency} financial performance ${rangeLabel}`}
         controls={<IntelligenceFilters entity={entity} currency={currency} selection={selection} showCurrency={false} />}
       />
@@ -344,8 +359,9 @@ export default async function IntelligencePage({
           comparisonLabel={comparisonLabel}
         />
         <KpiCard
-          label="Outflow Pending"
+          label="Liabilities"
           value={formatMoney(overview.outflowPending, currency)}
+          sublabel="Pending outflow — amount owed"
           icon={Clock}
           tone="warning"
           trend={pendingTrend}
@@ -397,7 +413,7 @@ export default async function IntelligencePage({
         />
       </div>
 
-      <Card>
+      <Card className="rounded-2xl border-border/60 shadow-sm">
         <CardHeader>
           <CardTitle>Cash Flow Trend</CardTitle>
           <CardDescription>Inflow received vs outflow paid, last {cashFlowPoints.length} months</CardDescription>
@@ -415,7 +431,7 @@ export default async function IntelligencePage({
       </Card>
 
       <div className="grid gap-3 lg:grid-cols-2">
-        <Card>
+        <Card className="rounded-2xl border-border/60 shadow-sm">
           <CardHeader>
             <CardTitle>Weekly Payment Status</CardTitle>
           </CardHeader>
@@ -466,7 +482,7 @@ export default async function IntelligencePage({
             </table>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="rounded-2xl border-border/60 shadow-sm">
           <CardHeader>
             <CardTitle>Payment Progress</CardTitle>
           </CardHeader>
@@ -514,7 +530,7 @@ export default async function IntelligencePage({
       {/* Mirrors the workbook Dashboard's INFLOW SUMMARY block, which the
           earlier UI pass never surfaced even though getInflowSummary already
           computed every one of these figures. */}
-      <Card>
+      <Card className="rounded-2xl border-border/60 shadow-sm">
         <CardHeader>
           <CardTitle>Inflow Summary</CardTitle>
           <CardDescription>Client deals closed and collection performance {rangeLabel}</CardDescription>
@@ -545,7 +561,7 @@ export default async function IntelligencePage({
         </CardContent>
       </Card>
 
-      <Card>
+      <Card className="rounded-2xl border-border/60 shadow-sm">
         <CardHeader>
           <CardTitle>Expense by Category</CardTitle>
         </CardHeader>
@@ -598,7 +614,57 @@ export default async function IntelligencePage({
         </CardContent>
       </Card>
 
-      <Card>
+      <Card className="rounded-2xl border-border/60 shadow-sm">
+        <CardHeader>
+          <CardTitle>Department Payment Status</CardTitle>
+          <CardDescription>
+            {departmentStatus.length === 0
+              ? "Tag expenses with a Department on the Outflow form to see this."
+              : `${departmentsFullyPaid} of ${departmentStatus.length} department${departmentStatus.length === 1 ? "" : "s"} fully paid ${rangeLabel}`}
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="overflow-x-auto">
+          {departmentStatus.length === 0 ? (
+            <EmptyState
+              title="No departments tracked yet"
+              description="Add departments under Master Data, then tag them on outflow entries to see who's paid and who's delayed."
+              actionLabel="Manage departments"
+              actionHref="/operations/categories"
+            />
+          ) : (
+            <table className="w-full min-w-[560px] text-table">
+              <thead className="text-left text-xs uppercase tracking-wide text-muted-foreground">
+                <tr>
+                  <th className="py-2 font-medium">Department</th>
+                  <th className="py-2 text-right font-medium">Items</th>
+                  <th className="py-2 text-right font-medium">Total Due</th>
+                  <th className="py-2 text-right font-medium">Paid</th>
+                  <th className="py-2 text-right font-medium">Liability (Pending)</th>
+                  <th className="py-2 text-right font-medium">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border-subtle">
+                {departmentStatus.map((d) => (
+                  <tr key={d.departmentId} className="hover:bg-accent/40">
+                    <td className="py-2">{d.departmentName}</td>
+                    <td className="py-2 text-right text-muted-foreground">{d.itemCount}</td>
+                    <td className="py-2 text-right">{formatMoney(d.totalDue, currency)}</td>
+                    <td className="py-2 text-right">{formatMoney(d.paid, currency)}</td>
+                    <td className="py-2 text-right font-medium">{formatMoney(d.pending, currency)}</td>
+                    <td className="py-2 text-right">
+                      <Badge variant={d.fullyPaid ? "success" : "warning"} dot>
+                        {d.fullyPaid ? "Fully Paid" : "Delayed"}
+                      </Badge>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card className="rounded-2xl border-border/60 shadow-sm">
         <CardHeader>
           <CardTitle>Receivables</CardTitle>
         </CardHeader>
@@ -679,8 +745,10 @@ function PageHeader({ title, subtitle, controls }: { title: string; subtitle: st
   return (
     <div className="flex flex-wrap items-center justify-between gap-3">
       <div>
-        <h1 className="text-page-title">{title}</h1>
-        <p className="text-page-subtitle">{subtitle}</p>
+        <h1 className="bg-gradient-to-r from-violet-600 via-indigo-600 to-blue-600 bg-clip-text text-[1.75rem] font-extrabold leading-tight tracking-[-0.02em] text-transparent dark:from-violet-400 dark:via-indigo-400 dark:to-blue-400">
+          {title}
+        </h1>
+        <p className="mt-0.5 text-page-subtitle">{subtitle}</p>
       </div>
       {controls}
     </div>

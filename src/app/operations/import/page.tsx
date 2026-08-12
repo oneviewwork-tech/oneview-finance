@@ -1,8 +1,11 @@
 import { prisma } from "@/lib/prisma";
+import { requireUser, canWriteEntity } from "@/lib/rbac";
 import { ImportWizard } from "./import-wizard";
 
 export default async function ImportPage() {
-  const entities = await prisma.businessEntity.findMany({ orderBy: { code: "asc" } });
+  const user = await requireUser();
+  const allEntities = await prisma.businessEntity.findMany({ orderBy: { code: "asc" } });
+  const entities = allEntities.filter((e) => canWriteEntity(user.role, e.code));
 
   return (
     <div className="max-w-4xl">

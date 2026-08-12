@@ -262,14 +262,29 @@ export async function commitImport(input: CommitImportInput): Promise<CommitImpo
   return { batchId, outflowImported: input.outflowRows.length, inflowImported: input.inflowRows.length };
 }
 
-/** Undoes an entire import batch — Payments cascade-delete with their transaction. "Rollback where practical," per the spec. */
-export async function rollbackImportBatch(batchId: string, actorId: string, actorEmail: string): Promise<{ deletedCount: number }> {
+async function findImportBatchTransactionIds(batchId: string): Promise<string[]> {
   const importEvents = await prisma.auditEvent.findMany({
     where: { action: "IMPORT", entityType: "FinancialTransaction" },
   });
-  const transactionIds = importEvents
+  return importEvents
     .filter((e) => (e.metadata as { batchId?: string } | null)?.batchId === batchId)
     .map((e) => e.entityId);
+}
+
+/** Resolves which business entity(ies) an import batch touched, so callers can enforce entity-scoped write access before rolling back. */
+export async function getImportBatchEntityCodes(batchId: string): Promise<string[]> {
+  const transactionIds = await findImportBatchTransactionIds(batchId);
+  if (transactionIds.length === 0) return [];
+  const transactions = await prisma.financialTransaction.findMany({
+    where: { id: { in: transactionIds } },
+    select: { entity: { select: { code: true } } },
+  });
+  return [...new Set(transactions.map((t) => t.entity.code))];
+}
+
+/** Undoes an entire import batch — Payments cascade-delete with their transaction. "Rollback where practical," per the spec. */
+export async function rollbackImportBatch(batchId: string, actorId: string, actorEmail: string): Promise<{ deletedCount: number }> {
+  const transactionIds = await findImportBatchTransactionIds(batchId);
 
   if (transactionIds.length === 0) return { deletedCount: 0 };
 

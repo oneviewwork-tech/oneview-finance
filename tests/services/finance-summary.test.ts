@@ -33,16 +33,27 @@ beforeAll(async () => {
   const admin = await prisma.user.findFirstOrThrow({ where: { role: "SUPER_ADMIN" } });
   userId = admin.id;
 
+  // A prior interrupted run can leave this fixture behind, which would otherwise
+  // fail the unique `code` constraint below and skip straight to a broken afterAll.
+  const leftover = await prisma.businessEntity.findUnique({ where: { code: "_TESTSUMMARY" } });
+  if (leftover) {
+    await prisma.financialTransaction.deleteMany({ where: { entityId: leftover.id } });
+    await prisma.client.deleteMany({ where: { entityId: leftover.id } });
+    await prisma.businessEntity.delete({ where: { id: leftover.id } });
+  }
+
   const entity = await prisma.businessEntity.create({
     data: { code: "_TESTSUMMARY", name: "_TEST Summary Entity", country: "Testland", baseCurrency: "AED" },
   });
   entityId = entity.id;
 
+  // upsert (not create) — a prior run's leftover afterAll-skip can leave these
+  // names behind, and colliding with them here shouldn't fail the whole suite.
   const [salaries, rent, current, arrears] = await Promise.all([
-    prisma.financialCategory.create({ data: { name: "_TEST Salaries", sortOrder: 900 } }),
-    prisma.financialCategory.create({ data: { name: "_TEST Rent", sortOrder: 901 } }),
-    prisma.expenseType.create({ data: { name: "_TEST Current", sortOrder: 900 } }),
-    prisma.expenseType.create({ data: { name: "_TEST Arrears", sortOrder: 901 } }),
+    prisma.financialCategory.upsert({ where: { name: "_TEST Salaries" }, update: {}, create: { name: "_TEST Salaries", sortOrder: 900 } }),
+    prisma.financialCategory.upsert({ where: { name: "_TEST Rent" }, update: {}, create: { name: "_TEST Rent", sortOrder: 901 } }),
+    prisma.expenseType.upsert({ where: { name: "_TEST Current" }, update: {}, create: { name: "_TEST Current", sortOrder: 900 } }),
+    prisma.expenseType.upsert({ where: { name: "_TEST Arrears" }, update: {}, create: { name: "_TEST Arrears", sortOrder: 901 } }),
   ]);
   categorySalaries = salaries.id;
   categoryRent = rent.id;
@@ -144,10 +155,18 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
+  // If beforeAll threw before assigning these, an unguarded deleteMany({ where: { entityId } })
+  // becomes deleteMany({}) — Prisma treats an undefined filter value as "no filter" — which
+  // would wipe every row in the table instead of just this fixture. Never let that happen.
+  if (!entityId) return;
   await prisma.financialTransaction.deleteMany({ where: { entityId } });
   await prisma.client.deleteMany({ where: { entityId } });
-  await prisma.financialCategory.deleteMany({ where: { id: { in: [categorySalaries, categoryRent] } } });
-  await prisma.expenseType.deleteMany({ where: { id: { in: [expenseTypeCurrent, expenseTypeArrears] } } });
+  if (categorySalaries && categoryRent) {
+    await prisma.financialCategory.deleteMany({ where: { id: { in: [categorySalaries, categoryRent] } } });
+  }
+  if (expenseTypeCurrent && expenseTypeArrears) {
+    await prisma.expenseType.deleteMany({ where: { id: { in: [expenseTypeCurrent, expenseTypeArrears] } } });
+  }
   await prisma.businessEntity.delete({ where: { id: entityId } });
 });
 

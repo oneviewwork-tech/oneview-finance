@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import { getCurrentUser } from "@/lib/current-user";
+import { requireMasterDataAccess } from "@/lib/rbac";
 import { writeAuditEvent } from "@/lib/audit";
 import { actionError, actionSuccess, zodFieldErrors, type ActionResult } from "@/lib/action-result";
 import { masterDataNameSchema } from "@/validators/finance";
@@ -22,7 +22,7 @@ export async function createCategory(formData: FormData): Promise<ActionResult<{
   const parsed = masterDataNameSchema.safeParse({ name: formData.get("name") });
   if (!parsed.success) return actionError("Invalid input", zodFieldErrors(parsed.error));
 
-  const actor = await getCurrentUser();
+  const actor = await requireMasterDataAccess();
   const sortOrder = await nextSortOrder(() => prisma.financialCategory.count());
 
   const result = await prisma.$transaction(async (tx) => {
@@ -45,7 +45,7 @@ export async function createCategory(formData: FormData): Promise<ActionResult<{
 }
 
 export async function setCategoryActive(id: string, isActive: boolean): Promise<ActionResult> {
-  const actor = await getCurrentUser();
+  const actor = await requireMasterDataAccess();
   await prisma.$transaction(async (tx) => {
     const before = await tx.financialCategory.findUniqueOrThrow({ where: { id } });
     const after = await tx.financialCategory.update({ where: { id }, data: { isActive } });
@@ -67,7 +67,7 @@ export async function createExpenseType(formData: FormData): Promise<ActionResul
   const parsed = masterDataNameSchema.safeParse({ name: formData.get("name") });
   if (!parsed.success) return actionError("Invalid input", zodFieldErrors(parsed.error));
 
-  const actor = await getCurrentUser();
+  const actor = await requireMasterDataAccess();
   const sortOrder = await nextSortOrder(() => prisma.expenseType.count());
 
   const result = await prisma.$transaction(async (tx) => {
@@ -88,7 +88,7 @@ export async function createExpenseType(formData: FormData): Promise<ActionResul
 }
 
 export async function setExpenseTypeActive(id: string, isActive: boolean): Promise<ActionResult> {
-  const actor = await getCurrentUser();
+  const actor = await requireMasterDataAccess();
   await prisma.$transaction(async (tx) => {
     const before = await tx.expenseType.findUniqueOrThrow({ where: { id } });
     const after = await tx.expenseType.update({ where: { id }, data: { isActive } });
@@ -110,7 +110,7 @@ export async function createPaymentMethod(formData: FormData): Promise<ActionRes
   const parsed = masterDataNameSchema.safeParse({ name: formData.get("name") });
   if (!parsed.success) return actionError("Invalid input", zodFieldErrors(parsed.error));
 
-  const actor = await getCurrentUser();
+  const actor = await requireMasterDataAccess();
   const sortOrder = await nextSortOrder(() => prisma.paymentMethod.count());
 
   const result = await prisma.$transaction(async (tx) => {
@@ -131,7 +131,7 @@ export async function createPaymentMethod(formData: FormData): Promise<ActionRes
 }
 
 export async function setPaymentMethodActive(id: string, isActive: boolean): Promise<ActionResult> {
-  const actor = await getCurrentUser();
+  const actor = await requireMasterDataAccess();
   await prisma.$transaction(async (tx) => {
     const before = await tx.paymentMethod.findUniqueOrThrow({ where: { id } });
     const after = await tx.paymentMethod.update({ where: { id }, data: { isActive } });
@@ -153,7 +153,7 @@ export async function createClientType(formData: FormData): Promise<ActionResult
   const parsed = masterDataNameSchema.safeParse({ name: formData.get("name") });
   if (!parsed.success) return actionError("Invalid input", zodFieldErrors(parsed.error));
 
-  const actor = await getCurrentUser();
+  const actor = await requireMasterDataAccess();
   const sortOrder = await nextSortOrder(() => prisma.clientType.count());
 
   const result = await prisma.$transaction(async (tx) => {
@@ -174,12 +174,55 @@ export async function createClientType(formData: FormData): Promise<ActionResult
 }
 
 export async function setClientTypeActive(id: string, isActive: boolean): Promise<ActionResult> {
-  const actor = await getCurrentUser();
+  const actor = await requireMasterDataAccess();
   await prisma.$transaction(async (tx) => {
     const before = await tx.clientType.findUniqueOrThrow({ where: { id } });
     const after = await tx.clientType.update({ where: { id }, data: { isActive } });
     await writeAuditEvent(tx, {
       entityType: "ClientType",
+      entityId: id,
+      action: "UPDATE",
+      actorUserId: actor.id,
+      actorEmail: actor.email,
+      before,
+      after,
+    });
+  });
+  revalidatePath("/operations/categories");
+  return actionSuccess(undefined);
+}
+
+export async function createDepartment(formData: FormData): Promise<ActionResult<{ id: string }>> {
+  const parsed = masterDataNameSchema.safeParse({ name: formData.get("name") });
+  if (!parsed.success) return actionError("Invalid input", zodFieldErrors(parsed.error));
+
+  const actor = await requireMasterDataAccess();
+  const sortOrder = await nextSortOrder(() => prisma.department.count());
+
+  const result = await prisma.$transaction(async (tx) => {
+    const department = await tx.department.create({ data: { name: parsed.data.name, sortOrder } });
+    await writeAuditEvent(tx, {
+      entityType: "Department",
+      entityId: department.id,
+      action: "CREATE",
+      actorUserId: actor.id,
+      actorEmail: actor.email,
+      after: department,
+    });
+    return department;
+  });
+
+  revalidatePath("/operations/categories");
+  return actionSuccess({ id: result.id });
+}
+
+export async function setDepartmentActive(id: string, isActive: boolean): Promise<ActionResult> {
+  const actor = await requireMasterDataAccess();
+  await prisma.$transaction(async (tx) => {
+    const before = await tx.department.findUniqueOrThrow({ where: { id } });
+    const after = await tx.department.update({ where: { id }, data: { isActive } });
+    await writeAuditEvent(tx, {
+      entityType: "Department",
       entityId: id,
       action: "UPDATE",
       actorUserId: actor.id,

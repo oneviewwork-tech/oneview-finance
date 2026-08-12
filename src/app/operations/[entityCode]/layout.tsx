@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ChevronLeft } from "lucide-react";
 import { requireEntityBySlug } from "@/lib/entities";
+import { requireEntityAccess } from "@/lib/rbac";
 import { TabNav } from "@/components/ui/tab-nav";
 
 export default async function EntityOperationsLayout({
@@ -12,6 +13,7 @@ export default async function EntityOperationsLayout({
 }) {
   const { entityCode } = await params;
   const entity = await requireEntityBySlug(entityCode);
+  await requireEntityAccess(entity.code);
   const base = `/operations/${entityCode}`;
 
   return (
@@ -23,7 +25,7 @@ export default async function EntityOperationsLayout({
             className="mb-1 inline-flex items-center gap-0.5 text-metadata transition-ui hover:text-foreground"
           >
             <ChevronLeft className="h-3 w-3" />
-            Financial Operations
+            Accounts
           </Link>
           <h1 className="text-page-title">
             {entity.name} <span className="font-normal text-muted-foreground">· {entity.baseCurrency}</span>

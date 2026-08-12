@@ -1,11 +1,14 @@
 import { prisma } from "@/lib/prisma";
 import { formatDate } from "@/lib/format";
+import { requireUser, canManageFx } from "@/lib/rbac";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ManualRateForm } from "./manual-rate-form";
 import { RefreshRateButton } from "./refresh-rate-button";
 
 export default async function FxManagementPage() {
+  const user = await requireUser();
+  const canManage = canManageFx(user.role);
   const rates = await prisma.exchangeRate.findMany({
     orderBy: [{ rateDate: "desc" }, { createdAt: "desc" }],
     take: 30,
@@ -21,23 +24,27 @@ export default async function FxManagementPage() {
         </p>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Refresh live rate</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <RefreshRateButton />
-        </CardContent>
-      </Card>
+      {canManage && (
+        <>
+          <Card>
+            <CardHeader>
+              <CardTitle>Refresh live rate</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <RefreshRateButton />
+            </CardContent>
+          </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Add a manual rate</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <ManualRateForm />
-        </CardContent>
-      </Card>
+          <Card>
+            <CardHeader>
+              <CardTitle>Add a manual rate</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ManualRateForm />
+            </CardContent>
+          </Card>
+        </>
+      )}
 
       <Card>
         <CardHeader>

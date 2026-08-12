@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import Script from "next/script";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -14,7 +15,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "ONEVIEW Finance",
-  description: "Financial Operations and Financial Intelligence for HACA / ONEVIEW.",
+  description: "Accounts and Finance View for HACA / ONEVIEW.",
 };
 
 export default function RootLayout({
@@ -24,15 +25,12 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <head>
-        {/* Applies the stored theme before first paint so dark mode never flashes white. */}
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `try{if(localStorage.getItem('oneview-theme')==='dark')document.documentElement.classList.add('dark')}catch(e){}`,
-          }}
-        />
-      </head>
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
+        {/* Applies the stored theme before first paint so dark mode never flashes white.
+            Loaded as an external file (not inline) so script-src can stay free of 'unsafe-inline'.
+            beforeInteractive via next/script — not a raw <script> tag, which the App Router's
+            managed <head> rejects with a DOM-nesting error. */}
+        <Script src="/theme-init.js" strategy="beforeInteractive" />
         {children}
       </body>
     </html>

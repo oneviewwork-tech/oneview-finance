@@ -2,7 +2,7 @@
 
 import { useActionState, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import type { Currency, ExpenseType, FinancialCategory, PaymentMethod, Vendor } from "@prisma/client";
+import type { Currency, Department, ExpenseType, FinancialCategory, PaymentMethod, Vendor } from "@prisma/client";
 import { createOutflow } from "@/actions/transaction.actions";
 import type { ActionResult } from "@/lib/action-result";
 import { Button } from "@/components/ui/button";
@@ -23,6 +23,7 @@ export function OutflowForm({
   categories,
   expenseTypes,
   vendors,
+  departments,
   paymentMethods,
 }: {
   entityCode: string;
@@ -31,6 +32,7 @@ export function OutflowForm({
   categories: FinancialCategory[];
   expenseTypes: ExpenseType[];
   vendors: Vendor[];
+  departments: Department[];
   paymentMethods: PaymentMethod[];
 }) {
   const router = useRouter();
@@ -107,19 +109,34 @@ export function OutflowForm({
         </div>
       </div>
 
-      {vendors.length > 0 && (
-        <div>
-          <Label htmlFor="vendorId">Vendor (optional)</Label>
-          <Select id="vendorId" name="vendorId" defaultValue="" className="mt-1">
-            <option value="">-</option>
-            {vendors.map((v) => (
-              <option key={v.id} value={v.id}>
-                {v.name}
-              </option>
-            ))}
-          </Select>
-        </div>
-      )}
+      <div className="grid grid-cols-2 gap-4">
+        {vendors.length > 0 && (
+          <div>
+            <Label htmlFor="vendorId">Vendor (optional)</Label>
+            <Select id="vendorId" name="vendorId" defaultValue="" className="mt-1">
+              <option value="">-</option>
+              {vendors.map((v) => (
+                <option key={v.id} value={v.id}>
+                  {v.name}
+                </option>
+              ))}
+            </Select>
+          </div>
+        )}
+        {departments.length > 0 && (
+          <div>
+            <Label htmlFor="departmentId">Department (optional)</Label>
+            <Select id="departmentId" name="departmentId" defaultValue="" className="mt-1">
+              <option value="">-</option>
+              {departments.map((d) => (
+                <option key={d.id} value={d.id}>
+                  {d.name}
+                </option>
+              ))}
+            </Select>
+          </div>
+        )}
+      </div>
 
       <div className="rounded-xl border border-border p-4">
         <label className="flex items-center gap-2 text-sm font-medium">

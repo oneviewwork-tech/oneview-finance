@@ -31,6 +31,17 @@ beforeAll(async () => {
   const admin = await prisma.user.findFirstOrThrow({ where: { role: "SUPER_ADMIN" } });
   userId = admin.id;
 
+  // A prior interrupted run can leave this fixture behind, which would otherwise
+  // fail the unique `code` constraint below and skip straight to a broken afterAll.
+  const leftover = await prisma.businessEntity.findUnique({ where: { code: "_TESTIMPORT" } });
+  if (leftover) {
+    await prisma.financialTransaction.deleteMany({ where: { entityId: leftover.id } });
+    await prisma.client.deleteMany({ where: { entityId: leftover.id } });
+    await prisma.businessEntity.delete({ where: { id: leftover.id } });
+  }
+  const leftoverCategory = await prisma.financialCategory.findFirst({ where: { name: "_TEST IMPORT Salaries" } });
+  if (leftoverCategory) await prisma.financialCategory.delete({ where: { id: leftoverCategory.id } });
+
   const entity = await prisma.businessEntity.create({
     data: { code: "_TESTIMPORT", name: "_TEST Import Entity", country: "Testland", baseCurrency: "AED" },
   });
@@ -43,6 +54,9 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
+  // Guard against an unassigned entityId (beforeAll threw before assigning it) turning
+  // these filters into no-ops that would match — and delete — every row in the table.
+  if (!entityId) return;
   const txns = await prisma.financialTransaction.findMany({ where: { entityId } });
   const ids = txns.map((t) => t.id);
   await prisma.payment.deleteMany({ where: { transactionId: { in: ids } } });
@@ -54,7 +68,7 @@ afterAll(async () => {
   await prisma.client.deleteMany({ where: { entityId } });
 
   await prisma.businessEntity.delete({ where: { id: entityId } });
-  await prisma.financialCategory.delete({ where: { id: categoryId } });
+  if (categoryId) await prisma.financialCategory.delete({ where: { id: categoryId } });
 });
 
 describe("previewImport", () => {

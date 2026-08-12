@@ -1,22 +1,27 @@
 import { prisma } from "@/lib/prisma";
+import { requireMasterDataAccess } from "@/lib/rbac";
 import {
   createCategory,
   createClientType,
+  createDepartment,
   createExpenseType,
   createPaymentMethod,
   setCategoryActive,
   setClientTypeActive,
+  setDepartmentActive,
   setExpenseTypeActive,
   setPaymentMethodActive,
 } from "@/actions/master-data.actions";
 import { MasterDataSection } from "./master-data-section";
 
 export default async function MasterDataPage() {
-  const [categories, expenseTypes, paymentMethods, clientTypes] = await Promise.all([
+  await requireMasterDataAccess();
+  const [categories, expenseTypes, paymentMethods, clientTypes, departments] = await Promise.all([
     prisma.financialCategory.findMany({ orderBy: { sortOrder: "asc" } }),
     prisma.expenseType.findMany({ orderBy: { sortOrder: "asc" } }),
     prisma.paymentMethod.findMany({ orderBy: { sortOrder: "asc" } }),
     prisma.clientType.findMany({ orderBy: { sortOrder: "asc" } }),
+    prisma.department.findMany({ orderBy: { sortOrder: "asc" } }),
   ]);
 
   return (
@@ -55,6 +60,13 @@ export default async function MasterDataPage() {
           items={clientTypes}
           createAction={createClientType}
           toggleAction={setClientTypeActive}
+        />
+        <MasterDataSection
+          title="Departments"
+          description="Optional tag on the Outflow form, used for the per-department payment status view on Finance View."
+          items={departments}
+          createAction={createDepartment}
+          toggleAction={setDepartmentActive}
         />
       </div>
     </div>

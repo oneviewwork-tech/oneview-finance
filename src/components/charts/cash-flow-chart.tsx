@@ -19,7 +19,7 @@ const PAD_TOP = 18;
 const PAD_BOTTOM = 30;
 const PAD_LEFT = 8;
 const PLOT_H = H - PAD_TOP - PAD_BOTTOM;
-const OUTFLOW_COLOR = "var(--brand)";
+const OUTFLOW_COLOR = "#7c3aed"; // violet-600 — matches the Finance View accent family (this chart is Finance View-only)
 
 /** Inflow vs Outflow-paid over time, with a crosshair that reads out both series plus net at the hovered month. */
 export function CashFlowChart({ data }: { data: CashFlowPoint[] }) {
@@ -125,7 +125,7 @@ export function CashFlowChart({ data }: { data: CashFlowPoint[] }) {
 
       {point && (
         <div
-          className="pointer-events-none absolute top-2 z-10 min-w-36 -translate-x-1/2 rounded-md border border-border bg-foreground px-2.5 py-2 shadow-lg"
+          className="pointer-events-none absolute top-2 z-10 min-w-36 -translate-x-1/2 rounded-xl border border-border bg-foreground px-2.5 py-2 shadow-lg"
           style={{ left: `${(xAt(active!) / width) * 100}%` }}
         >
           <p className="text-[0.6875rem] font-medium text-background/70">{point.label}</p>

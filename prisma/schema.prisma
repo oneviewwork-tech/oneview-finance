@@ -34,13 +34,41 @@ model User {
   isActive           Boolean   @default(true)
   mustChangePassword Boolean   @default(true)
   lastActiveAt       DateTime?
-  createdAt          DateTime  @default(now())
-  updatedAt          DateTime  @updatedAt
+
+  // Brute-force protection: incremented on every wrong password, reset on
+  // success. Once it crosses LOCKOUT_THRESHOLD (see auth.ts), lockedUntil
+  // is set and login is refused until that time passes, regardless of
+  // whether the password given afterward is correct — this is deliberately
+  // account-based (not just IP-based), since the account is the asset
+  // being protected.
+  failedLoginAttempts Int       @default(0)
+  lockedUntil         DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   createdTransactions FinancialTransaction[] @relation("TransactionCreatedBy")
   updatedTransactions FinancialTransaction[] @relation("TransactionUpdatedBy")
   payments            Payment[]
   exchangeRates       ExchangeRate[]
+  sessions            UserSession[]
+}
+
+// One row per login. Lets a real logout event be recorded (vs. a JWT that
+// merely expires client-side), and gives a Super Admin a real "who's
+// signed in, from where" view without needing anything beyond Postgres.
+model UserSession {
+  id         String    @id @default(cuid())
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  loginAt    DateTime  @default(now())
+  lastSeenAt DateTime  @default(now())
+  logoutAt   DateTime?
+  ipAddress  String?
+  userAgent  String?
+
+  @@index([userId])
+  @@index([lastSeenAt])
 }
 
 // ── Currency & FX ────────────────────────────────────────────────────
@@ -107,6 +135,21 @@ model BusinessEntity {
 // ── Master data (was the "Lists" sheet — now DB-backed and editable) ──
 
 model FinancialCategory {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  isActive  Boolean  @default(true)
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  transactions FinancialTransaction[]
+}
+
+// Not part of the source workbook — added so Outflow can be tagged by which
+// department/team an expense belongs to (e.g. salary runs), enabling a
+// per-department paid/pending status view. Optional, outflow-only; existing
+// and untagged transactions simply don't appear in that breakdown.
+model Department {
   id        String   @id @default(cuid())
   name      String   @unique
   isActive  Boolean  @default(true)
@@ -240,6 +283,8 @@ model FinancialTransaction {
   expenseType   ExpenseType?       @relation(fields: [expenseTypeId], references: [id])
   vendorId      String?
   vendor        Vendor?            @relation(fields: [vendorId], references: [id])
+  departmentId  String?
+  department    Department?        @relation(fields: [departmentId], references: [id])
 
   // Inflow-only fields
   clientId     String?
@@ -271,6 +316,7 @@ model FinancialTransaction {
 
   @@index([entityId, transactionType, transactionDate])
   @@index([categoryId])
+  @@index([departmentId])
   @@index([clientId])
   @@index([vendorId])
   @@index([status])
@@ -315,6 +361,17 @@ enum AuditAction {
   EXPORT
   IMPORT
   FX_RATE_UPDATED
+  // Identity & access — added for Phase 6.
+  LOGIN
+  LOGIN_FAILED
+  LOGOUT
+  ACCOUNT_LOCKED
+  PASSWORD_CHANGED
+  USER_CREATED
+  USER_UPDATED
+  USER_DEACTIVATED
+  USER_REACTIVATED
+  ACCESS_DENIED
 }
 
 // Append-only. actorUserId/actorEmail are deliberately plain fields, not a

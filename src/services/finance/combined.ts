@@ -2,7 +2,7 @@ import { Prisma } from "@prisma/client";
 import type { Currency, RateSource } from "@prisma/client";
 import type { DateRange } from "@/domain/finance/date-range";
 import { getEntitySummary, type EntitySummaryRow } from "./summary";
-import { convertAmount, getRateForDate } from "@/services/fx/exchange-rate.service";
+import { getRateForDate } from "@/services/fx/exchange-rate.service";
 
 const { Decimal } = Prisma;
 
@@ -68,12 +68,12 @@ export async function getCombinedSummary(reportingCurrency: Currency, range: Dat
         };
       }
 
-      const results = await Promise.all(
-        MONEY_FIELDS.map((field) => convertAmount(native[field], nativeCurrency, reportingCurrency, asOfDate))
-      );
-      const allAvailable = results.every((r) => r.available);
+      // One rate lookup covers all 5 money fields — MONEY_FIELDS previously
+      // called convertAmount() (and therefore re-queried the same rate) once
+      // per field, firing 5 identical DB round trips for a single entity.
+      const resolved = await getRateForDate(nativeCurrency, reportingCurrency, asOfDate);
 
-      if (!allAvailable) {
+      if (!resolved) {
         return {
           native,
           converted: {
@@ -88,10 +88,9 @@ export async function getCombinedSummary(reportingCurrency: Currency, range: Dat
         };
       }
 
-      const [totalInflow, totalOutflowDue, outflowPaid, outflowPending, receivables] = results.map((r) =>
-        r.available ? r.convertedAmount : new Decimal(0)
+      const [totalInflow, totalOutflowDue, outflowPaid, outflowPending, receivables] = MONEY_FIELDS.map((field) =>
+        native[field].mul(resolved.rate)
       );
-      const first = results[0];
 
       return {
         native,
@@ -103,9 +102,9 @@ export async function getCombinedSummary(reportingCurrency: Currency, range: Dat
           outflowPending,
           receivables,
           netPosition: totalInflow.minus(outflowPaid),
-          rate: first.available ? first.rate : undefined,
-          rateDate: first.available ? first.rateDate : undefined,
-          source: first.available ? first.source : undefined,
+          rate: resolved.rate,
+          rateDate: resolved.rateDate,
+          source: resolved.source,
         },
       };
     })
