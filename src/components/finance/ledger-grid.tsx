@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
 import type { Currency } from "@prisma/client";
 import { ArrowLeft, Check, Loader2, MoreVertical, Pencil, Plus, Trash2, TriangleAlert } from "lucide-react";
@@ -120,7 +121,12 @@ export function LedgerGrid({
   // live meant a stray click could silently change a figure — in a finance
   // sheet that is a real risk, not a papercut.
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [menuId, setMenuId] = useState<string | null>(null);
+  // Anchored by viewport coordinates and rendered through a portal: the
+  // table lives in an overflow-x-auto container, and per spec that clips the
+  // other axis too, so an absolutely-positioned menu inside it is invisible
+  // no matter how high its z-index.
+  const [menu, setMenu] = useState<{ id: string; x: number; y: number } | null>(null);
+  const menuId = menu?.id ?? null;
   const [confirmId, setConfirmId] = useState<string | null>(null);
   const gridRef = useRef<HTMLTableElement>(null);
   // Snapshot before an optimistic write, so a rejected save can put the row
@@ -140,20 +146,26 @@ export function LedgerGrid({
   }, [rows]);
 
   useEffect(() => {
-    if (!menuId) return;
-    function onDown() {
-      setMenuId(null);
+    if (!menu) return;
+    function close() {
+      setMenu(null);
     }
     function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") setMenuId(null);
+      if (e.key === "Escape") setMenu(null);
     }
-    document.addEventListener("pointerdown", onDown);
+    document.addEventListener("pointerdown", close);
     document.addEventListener("keydown", onKey);
+    // Fixed coordinates go stale the moment anything scrolls, so dismiss
+    // rather than leave the menu floating away from its row.
+    window.addEventListener("scroll", close, true);
+    window.addEventListener("resize", close);
     return () => {
-      document.removeEventListener("pointerdown", onDown);
+      document.removeEventListener("pointerdown", close);
       document.removeEventListener("keydown", onKey);
+      window.removeEventListener("scroll", close, true);
+      window.removeEventListener("resize", close);
     };
-  }, [menuId]);
+  }, [menu]);
 
   const setRowState = useCallback((id: string, s: SaveState) => {
     setSaveState((prev) => ({ ...prev, [id]: s }));
@@ -253,7 +265,7 @@ export function LedgerGrid({
   async function removeRow(id: string) {
     setError(null);
     setConfirmId(null);
-    setMenuId(null);
+    setMenu(null);
     setRowState(id, "saving");
     const result = await deleteLedgerRow(id);
     if (!result.success) {
@@ -378,46 +390,20 @@ export function LedgerGrid({
                           aria-haspopup="menu"
                           aria-expanded={menuId === row.id}
                           onPointerDown={(e) => e.stopPropagation()}
-                          onClick={() => setMenuId(menuId === row.id ? null : row.id)}
+                          onClick={(e) => {
+                            if (menuId === row.id) {
+                              setMenu(null);
+                              return;
+                            }
+                            const r = e.currentTarget.getBoundingClientRect();
+                            setMenu({ id: row.id, x: r.left, y: r.bottom + 4 });
+                          }}
                           className="rounded p-0.5 text-muted-foreground/60 transition-ui hover:bg-accent hover:text-foreground"
                         >
                           <MoreVertical className="h-3.5 w-3.5" />
                         </button>
                       )}
                     </span>
-
-                    {menuId === row.id && (
-                      <div
-                        role="menu"
-                        onPointerDown={(e) => e.stopPropagation()}
-                        className="popover-panel absolute left-1 top-full z-30 mt-1 w-32 p-1 text-left"
-                      >
-                        <button
-                          type="button"
-                          role="menuitem"
-                          onClick={() => {
-                            setEditingId(row.id);
-                            setMenuId(null);
-                          }}
-                          className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-ui hover:bg-accent"
-                        >
-                          <Pencil className="h-3.5 w-3.5" />
-                          Edit
-                        </button>
-                        <button
-                          type="button"
-                          role="menuitem"
-                          onClick={() => {
-                            setConfirmId(row.id);
-                            setMenuId(null);
-                          }}
-                          className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm text-destructive transition-ui hover:bg-destructive-subtle"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                          Delete
-                        </button>
-                      </div>
-                    )}
                   </td>
 
                   {columns.map((c) => {
@@ -539,6 +525,45 @@ export function LedgerGrid({
         Use the ⋮ menu on a row to edit or delete it. While editing, yellow cells are typed and blue-grey are
         calculated — same convention as the workbook. Enter or ↓ moves down a row; Escape leaves a cell without saving.
       </p>
+
+      {/* Portalled to <body> so the scroll container that holds the table
+          cannot clip it. Position is fixed, taken from the trigger's rect. */}
+      {menu &&
+        typeof document !== "undefined" &&
+        createPortal(
+          <div
+            role="menu"
+            onPointerDown={(e) => e.stopPropagation()}
+            style={{ position: "fixed", left: menu.x, top: menu.y }}
+            className="popover-panel z-50 w-36 p-1 text-left"
+          >
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                setEditingId(menu.id);
+                setMenu(null);
+              }}
+              className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-ui hover:bg-accent"
+            >
+              <Pencil className="h-3.5 w-3.5" />
+              Edit
+            </button>
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                setConfirmId(menu.id);
+                setMenu(null);
+              }}
+              className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm text-destructive transition-ui hover:bg-destructive-subtle"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+              Delete
+            </button>
+          </div>,
+          document.body
+        )}
 
       {confirmId && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
