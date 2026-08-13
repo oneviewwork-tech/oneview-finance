@@ -44,6 +44,18 @@ model User {
   failedLoginAttempts Int       @default(0)
   lockedUntil         DateTime?
 
+  // Second factor for privileged access (Super Admins, and anyone opening
+  // Finance View). A separate secret from the password, asked for once per
+  // login, so a stolen password alone doesn't expose financial data.
+  //
+  // NOTE: "passkey" here means a user-chosen secret, NOT WebAuthn/FIDO2 —
+  // this is a knowledge factor, not a hardware one. Named to match what the
+  // business calls it; don't mistake it for platform passkeys.
+  passkeyHash           String?
+  passkeySetAt          DateTime?
+  passkeyFailedAttempts Int       @default(0)
+  passkeyLockedUntil    DateTime?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -52,6 +64,27 @@ model User {
   payments            Payment[]
   exchangeRates       ExchangeRate[]
   sessions            UserSession[]
+  passkeyResetTokens  PasskeyResetToken[]
+}
+
+/// One-time code emailed to reset a forgotten passkey.
+///
+/// The code is stored hashed, never in clear text: this table is as
+/// sensitive as the passkey it can replace, and a DB leak shouldn't hand
+/// over working reset codes. Rows are single-use (consumedAt) and short-
+/// lived (expiresAt), with their own attempt counter so guessing a 6-digit
+/// code is not feasible.
+model PasskeyResetToken {
+  id         String    @id @default(cuid())
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  codeHash   String
+  expiresAt  DateTime
+  consumedAt DateTime?
+  attempts   Int       @default(0)
+  createdAt  DateTime  @default(now())
+
+  @@index([userId, consumedAt])
 }
 
 // One row per login. Lets a real logout event be recorded (vs. a JWT that
@@ -377,6 +410,13 @@ enum AuditAction {
   USER_DEACTIVATED
   USER_REACTIVATED
   ACCESS_DENIED
+  // Passkey second factor.
+  PASSKEY_SET
+  PASSKEY_VERIFIED
+  PASSKEY_FAILED
+  PASSKEY_LOCKED
+  PASSKEY_RESET_REQUESTED
+  PASSKEY_RESET_COMPLETED
 }
 
 // Append-only. actorUserId/actorEmail are deliberately plain fields, not a

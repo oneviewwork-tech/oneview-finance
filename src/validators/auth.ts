@@ -18,6 +18,30 @@ export const passwordSchema = z
 // rules above — an admin shouldn't have to fail a submit to learn the rule.
 export const PASSWORD_RULE_HINT = `At least ${PASSWORD_MIN_LENGTH} characters, with an uppercase letter, a lowercase letter, and a number.`;
 
+// The passkey is a second factor, not a second password. Requiring the same
+// length and character mix would push people to reuse their password, which
+// would defeat the point — so this is a shorter, distinct secret, and the
+// action refuses one that matches the account password.
+export const PASSKEY_MIN_LENGTH = 6;
+export const PASSKEY_MAX_LENGTH = 64;
+
+export const passkeySchema = z
+  .string()
+  .min(PASSKEY_MIN_LENGTH, `Passkey must be at least ${PASSKEY_MIN_LENGTH} characters`)
+  .max(PASSKEY_MAX_LENGTH, `Passkey must be at most ${PASSKEY_MAX_LENGTH} characters`);
+
+export const PASSKEY_RULE_HINT = `At least ${PASSKEY_MIN_LENGTH} characters. Must be different from your password.`;
+
+export const setPasskeySchema = z
+  .object({
+    passkey: passkeySchema,
+    confirmPasskey: z.string().min(1, "Confirm your passkey"),
+  })
+  .refine((d) => d.passkey === d.confirmPasskey, {
+    message: "Passkeys do not match",
+    path: ["confirmPasskey"],
+  });
+
 export const changePasswordSchema = z
   .object({
     currentPassword: z.string().min(1, "Current password is required"),

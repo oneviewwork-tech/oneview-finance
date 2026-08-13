@@ -1,6 +1,8 @@
 import NextAuth from "next-auth";
 import { NextResponse } from "next/server";
 import { authConfig } from "@/lib/auth.config";
+import { requiresPasskey, isPasskeyRoute, isApiPath } from "@/domain/auth/passkey-policy";
+import { PASSKEY_COOKIE, isStepUpValidFor } from "@/lib/passkey-token";
 
 // A separate, edge-safe NextAuth instance built only from the Prisma-free
 // config — no Credentials provider here, since bcrypt/Prisma can't run on
@@ -60,11 +62,16 @@ function buildCsp(nonce: string): string {
  * the real security boundary. This is the redirect layer that turns "not
  * signed in" into the login page instead of an error page.
  */
-export default auth((req) => {
+export default auth(async (req) => {
   const { pathname } = req.nextUrl;
   const isLoggedIn = !!req.auth?.user;
 
   if (!isLoggedIn) {
+    // API callers get a status code, not a login page — now that
+    // /api/export is matched, a redirect would hand a download HTML.
+    if (isApiPath(pathname)) {
+      return NextResponse.json({ error: "Authentication required" }, { status: 401 });
+    }
     if (pathname !== "/login") {
       const url = new URL("/login", req.nextUrl);
       url.searchParams.set("callbackUrl", req.nextUrl.pathname + req.nextUrl.search);
@@ -78,6 +85,43 @@ export default auth((req) => {
     }
     if (req.auth?.user?.mustChangePassword && pathname !== "/change-password") {
       return NextResponse.redirect(new URL("/change-password", req.nextUrl));
+    }
+
+    // Second factor. The password check has passed by this point; this is
+    // the step-up gate for privileged roles and the Finance View surface.
+    //
+    // The proof is a signed cookie bound to this user AND this login
+    // session, so it can't outlive the session or be replayed into another.
+    // A missing AUTH_SECRET makes every proof unverifiable, which fails
+    // closed here (isStepUpValidFor returns false) rather than open.
+    const authSecret = process.env.AUTH_SECRET ?? "";
+    const verified = await isStepUpValidFor(
+      req.cookies.get(PASSKEY_COOKIE)?.value,
+      authSecret,
+      req.auth?.user?.id,
+      req.auth?.user?.sessionId
+    );
+
+    if (requiresPasskey(req.auth?.user?.role, pathname, verified)) {
+      // Exports and other API calls get a refusal, not a redirect: handing a
+      // download an HTML login page would look like a corrupt file, and
+      // silently serving the data would defeat the gate entirely.
+      if (isApiPath(pathname)) {
+        return NextResponse.json(
+          { error: "Passkey verification required" },
+          { status: 403, headers: { "x-passkey-required": "1" } }
+        );
+      }
+      const url = new URL("/passkey", req.nextUrl);
+      url.searchParams.set("next", req.nextUrl.pathname + req.nextUrl.search);
+      return NextResponse.redirect(url);
+    }
+
+    // Already cleared — don't make them look at the gate again.
+    if (verified && isPasskeyRoute(pathname)) {
+      const next = req.nextUrl.searchParams.get("next");
+      const safe = next && next.startsWith("/") && !next.startsWith("//") ? next : "/";
+      return NextResponse.redirect(new URL(safe, req.nextUrl));
     }
   }
 
@@ -116,9 +160,15 @@ export const config = {
     "/",
     "/login",
     "/change-password",
+    "/passkey",
+    "/passkey/:path*",
     "/operations",
     "/operations/:path*",
     "/intelligence",
     "/intelligence/:path*",
+    // Exports emit the same financial rows the dashboard renders, so the
+    // second factor has to cover them too — otherwise the gate only slows
+    // down the UI while the data stays one fetch away.
+    "/api/export/:path*",
   ],
 };

@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { requireSession } from "@/lib/rbac";
 import { writeAuditEvent } from "@/lib/audit";
 import { signOut } from "@/lib/auth";
+import { clearStepUp } from "@/actions/passkey.actions";
 import { actionError, actionSuccess, zodFieldErrors, type ActionResult } from "@/lib/action-result";
 import { changePasswordSchema } from "@/validators/auth";
 
@@ -42,10 +43,15 @@ export async function changePassword(formData: FormData): Promise<ActionResult> 
   // The JWT still carries the old mustChangePassword claim and can't be
   // patched in place — sign out and require a fresh login with the new
   // password rather than juggling a same-session token refresh.
+  await clearStepUp();
   await signOut({ redirectTo: "/login" });
   return actionSuccess(undefined);
 }
 
 export async function logout(): Promise<void> {
+  // The step-up proof is bound to the session id, so a stale cookie can't
+  // actually clear the gate for the next login — but leaving a credential
+  // in the browser after an explicit sign-out is still wrong.
+  await clearStepUp();
   await signOut({ redirectTo: "/login" });
 }
