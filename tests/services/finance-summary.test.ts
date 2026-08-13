@@ -215,6 +215,16 @@ describe("getReceivables", () => {
 });
 
 describe("getCategorySummary", () => {
+  // Regression: the unbounded path used to pass max-JS-date as a sentinel
+  // upper bound, which Prisma cannot serialise into a raw query — it threw
+  // for every caller that omitted a range.
+  it("runs unbounded when no range is given", async () => {
+    const result = await getCategorySummary(entityId);
+    const salaries = result.find((r) => r.categoryId === categorySalaries)!;
+    expect(salaries).toBeDefined();
+    expect(salaries.totalDue.gt(0)).toBe(true);
+  });
+
   it("aggregates per category with WEEK 1-4 breakdown via Postgres date bucketing", async () => {
     const result = await getCategorySummary(entityId, RANGE);
     const salaries = result.find((r) => r.categoryId === categorySalaries)!;

@@ -35,11 +35,19 @@ export interface ButtonProps
   extends React.ButtonHTMLAttributes<HTMLButtonElement>,
     VariantProps<typeof buttonVariants> {
   loading?: boolean;
+  /** React 19 passes ref as an ordinary prop — no forwardRef wrapper needed.
+      Menu triggers need it to return focus when the menu closes. */
+  ref?: React.Ref<HTMLButtonElement>;
 }
 
-export function Button({ className, variant, size, loading, children, disabled, ...props }: ButtonProps) {
+export function Button({ className, variant, size, loading, children, disabled, ref, ...props }: ButtonProps) {
   return (
-    <button className={cn(buttonVariants({ variant, size }), className)} disabled={disabled || loading} {...props}>
+    <button
+      ref={ref}
+      className={cn(buttonVariants({ variant, size }), className)}
+      disabled={disabled || loading}
+      {...props}
+    >
       {loading && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
       {children}
     </button>

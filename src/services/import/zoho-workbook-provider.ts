@@ -2,19 +2,20 @@ import ExcelJS from "exceljs";
 import type { RawCellValue, RawInflowRow, RawOutflowRow } from "@/domain/import/types";
 import type { FinancialImportProvider, ParsedWorkbook } from "./provider";
 
-// Matches Dubai_August_2026_Live_Finance_Tracker.xlsx exactly, confirmed
-// against the real source workbook during Phase 0: Payment Tracker header
-// at row 8, 140 pre-formatted data rows (9-148); Inflow Tracker header at
-// row 5, 80 pre-formatted data rows (6-85). Rows past these ranges are the
-// sheet's own "TOTAL"/"EXAMPLE" rows, deliberately excluded — not content
-// we sniff for, structurally out of range.
-const OUTFLOW_SHEET = "Payment Tracker";
-const OUTFLOW_FIRST_ROW = 9;
-const OUTFLOW_LAST_ROW = 148;
-
-const INFLOW_SHEET = "Inflow Tracker";
-const INFLOW_FIRST_ROW = 6;
-const INFLOW_LAST_ROW = 85;
+// Layout comes from the shared workbook-layout module so the importer and
+// the exporter cannot drift apart — see the comment there. Rows past the
+// data ranges are the sheet's own "TOTAL"/"EXAMPLE" rows, deliberately
+// excluded: structurally out of range rather than content we sniff for.
+import {
+  OUTFLOW_SHEET,
+  OUTFLOW_FIRST_ROW,
+  OUTFLOW_LAST_ROW,
+  OUTFLOW_COL,
+  INFLOW_SHEET,
+  INFLOW_FIRST_ROW,
+  INFLOW_LAST_ROW,
+  INFLOW_COL,
+} from "@/domain/import/workbook-layout";
 
 function cellValue(row: ExcelJS.Row, col: number): RawCellValue {
   const value = row.getCell(col).value;
@@ -59,17 +60,17 @@ export class ZohoFinanceWorkbookProvider implements FinancialImportProvider {
       const row = outflowSheet.getRow(r);
       outflowRows.push({
         rowNumber: r,
-        week: cellValue(row, 2),
-        expenseItem: cellValue(row, 3),
-        category: cellValue(row, 4),
-        type: cellValue(row, 5),
-        amountDue: cellValue(row, 6),
-        amountPaid: cellValue(row, 7),
-        payFull: cellValue(row, 8),
-        datePaid: cellValue(row, 12),
-        mode: cellValue(row, 13),
-        referenceNo: cellValue(row, 14),
-        remarks: cellValue(row, 15),
+        week: cellValue(row, OUTFLOW_COL.week),
+        expenseItem: cellValue(row, OUTFLOW_COL.expenseItem),
+        category: cellValue(row, OUTFLOW_COL.category),
+        type: cellValue(row, OUTFLOW_COL.type),
+        amountDue: cellValue(row, OUTFLOW_COL.amountDue),
+        amountPaid: cellValue(row, OUTFLOW_COL.amountPaid),
+        payFull: cellValue(row, OUTFLOW_COL.payFull),
+        datePaid: cellValue(row, OUTFLOW_COL.datePaid),
+        mode: cellValue(row, OUTFLOW_COL.mode),
+        referenceNo: cellValue(row, OUTFLOW_COL.referenceNo),
+        remarks: cellValue(row, OUTFLOW_COL.remarks),
       });
     }
 
@@ -78,16 +79,16 @@ export class ZohoFinanceWorkbookProvider implements FinancialImportProvider {
       const row = inflowSheet.getRow(r);
       inflowRows.push({
         rowNumber: r,
-        dateReceived: cellValue(row, 2),
-        clientName: cellValue(row, 3),
-        serviceProject: cellValue(row, 4),
-        clientType: cellValue(row, 5),
-        dealValue: cellValue(row, 6),
-        amountReceived: cellValue(row, 7),
-        paymentMode: cellValue(row, 10),
-        referenceNo: cellValue(row, 11),
-        closedBy: cellValue(row, 12),
-        remarks: cellValue(row, 14),
+        dateReceived: cellValue(row, INFLOW_COL.dateReceived),
+        clientName: cellValue(row, INFLOW_COL.clientName),
+        serviceProject: cellValue(row, INFLOW_COL.serviceProject),
+        clientType: cellValue(row, INFLOW_COL.clientType),
+        dealValue: cellValue(row, INFLOW_COL.dealValue),
+        amountReceived: cellValue(row, INFLOW_COL.amountReceived),
+        paymentMode: cellValue(row, INFLOW_COL.paymentMode),
+        referenceNo: cellValue(row, INFLOW_COL.referenceNo),
+        closedBy: cellValue(row, INFLOW_COL.closedBy),
+        remarks: cellValue(row, INFLOW_COL.remarks),
       });
     }
 

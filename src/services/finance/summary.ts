@@ -190,8 +190,14 @@ interface CategorySummaryQueryRow {
 }
 
 export async function getCategorySummary(entityId: string, range?: DateRange): Promise<CategorySummaryRow[]> {
-  const from = range?.from ?? new Date(0);
-  const to = range?.to ?? new Date(8640000000000000);
+  // Omit the date predicate entirely for an unbounded query rather than
+  // reaching for sentinel dates. `new Date(8640000000000000)` (max JS date)
+  // was the previous upper bound and Prisma cannot serialise it into a raw
+  // query at all — so the all-time path threw. Every caller until now passed
+  // a range, which is why it went unnoticed.
+  const dateFilter = range
+    ? Prisma.sql`AND t."transactionDate" BETWEEN ${range.from} AND ${range.to}`
+    : Prisma.empty;
 
   const rows = await prisma.$queryRaw<CategorySummaryQueryRow[]>(Prisma.sql`
     SELECT
@@ -216,7 +222,7 @@ export async function getCategorySummary(entityId: string, range?: DateRange): P
       ON t."categoryId" = c.id
       AND t."entityId" = ${entityId}
       AND t."transactionType" = 'OUTFLOW'
-      AND t."transactionDate" BETWEEN ${from} AND ${to}
+      ${dateFilter}
     WHERE c."isActive" = true
     GROUP BY c.id, c.name, c."sortOrder"
     ORDER BY c."sortOrder"
