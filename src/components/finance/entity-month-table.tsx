@@ -69,7 +69,7 @@ export function EntityMonthTable({
                 <tr key={m.key} className="hover:bg-accent/40">
                   <td className="py-2.5">
                     <Link
-                      href={`/operations/${entityCode}/inflow/${m.key}`}
+                      href={`/operations/${entityCode}/month/${m.key}`}
                       className="group inline-flex items-center gap-1 font-medium text-brand transition-ui hover:underline"
                     >
                       {periodLabel({ year: m.year, month: m.month })}
