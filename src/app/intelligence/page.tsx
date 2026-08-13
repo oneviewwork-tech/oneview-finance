@@ -98,6 +98,19 @@ export default async function IntelligencePage({
     const c = combined.combined;
     const prev = previousCombined.combined;
 
+    // Combined tiles drill into a per-entity breakdown rather than one
+    // entity's rows: these totals span UAE and India, so linking to a single
+    // entity's list would misrepresent the number. Current filters ride along
+    // so the breakdown shows the same period and reporting currency.
+    const breakdownHref = (metric: string) => {
+      const qs = new URLSearchParams(
+        Object.entries(params).filter((e): e is [string, string] => typeof e[1] === "string")
+      );
+      qs.set("metric", metric);
+      qs.set("currency", currency);
+      return `/intelligence/breakdown?${qs.toString()}`;
+    };
+
     return (
       <div className="space-y-6">
         <PageHeader
@@ -139,6 +152,7 @@ export default async function IntelligencePage({
                 tone="success"
                 delta={prev.available ? { percentChange: pct(c.totalInflow, prev.totalInflow), upIsGood: true } : undefined}
                 comparisonLabel={comparisonLabel}
+                href={breakdownHref("totalInflow")}
               />
               <KpiCard
                 label="Total Outflow Due"
@@ -146,6 +160,7 @@ export default async function IntelligencePage({
                 icon={ArrowUpFromLine}
                 delta={prev.available ? { percentChange: pct(c.totalOutflowDue, prev.totalOutflowDue), upIsGood: false } : undefined}
                 comparisonLabel={comparisonLabel}
+                href={breakdownHref("totalOutflowDue")}
               />
               <KpiCard
                 label="Outflow Paid"
@@ -154,6 +169,7 @@ export default async function IntelligencePage({
                 tone="success"
                 progress={c.totalOutflowDue.gt(0) ? c.outflowPaid.toNumber() / c.totalOutflowDue.toNumber() : 0}
                 sublabel="of total outflow due"
+                href={breakdownHref("outflowPaid")}
               />
               <KpiCard
                 label="Outflow Pending"
@@ -162,6 +178,7 @@ export default async function IntelligencePage({
                 tone="warning"
                 delta={prev.available ? { percentChange: pct(c.outflowPending, prev.outflowPending), upIsGood: false } : undefined}
                 comparisonLabel={comparisonLabel}
+                href={breakdownHref("outflowPending")}
               />
               <KpiCard
                 label="Receivables"
@@ -169,8 +186,16 @@ export default async function IntelligencePage({
                 sublabel="Still owed by clients"
                 icon={HandCoins}
                 tone="warning"
+                href={breakdownHref("receivables")}
               />
-              <KpiCard label="Clients Closed" value={String(c.clientsClosed)} icon={Users} tone="brand" sublabel="Deals recorded this period" />
+              <KpiCard
+                label="Clients Closed"
+                value={String(c.clientsClosed)}
+                icon={Users}
+                tone="brand"
+                sublabel="Deals recorded this period"
+                href={breakdownHref("clientsClosed")}
+              />
             </div>
 
             <Card>
