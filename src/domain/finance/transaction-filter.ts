@@ -43,3 +43,53 @@ export function describeStatusFilter(filter: StatusFilter): string {
       return "Pending";
   }
 }
+
+/**
+ * Category and department filters, so a drill-down from a calculated card
+ * lands on the rows that actually made up its number.
+ *
+ * Added because "Records" on the Salary card linked to every paid expense —
+ * the link carried a status but no category, so it answered "what did we
+ * pay" rather than "what did we pay in salary". A filter that silently
+ * widens is worse than no link at all: the total on screen no longer
+ * matches the total you clicked.
+ */
+export interface RecordFilters {
+  status: StatusFilter | null;
+  /** Matched against FinancialCategory.name — categories are user-editable
+   *  master data with no stable code to key on. */
+  categoryNames: string[] | null;
+  departmentId: string | null;
+  /** Rows explicitly carrying no department, for an "Unassigned" drill-down. */
+  untaggedDepartment: boolean;
+}
+
+export function parseRecordFilters(params: {
+  status?: string;
+  category?: string;
+  department?: string;
+}): RecordFilters {
+  const category = params.category?.trim();
+  const department = params.department?.trim();
+  return {
+    status: parseStatusFilter(params.status),
+    // Comma-separated so a card covering several categories can drill in
+    // without needing a second parameter shape.
+    categoryNames: category ? category.split(",").map((c) => c.trim()).filter(Boolean) : null,
+    departmentId: department && department !== "none" ? department : null,
+    untaggedDepartment: department === "none",
+  };
+}
+
+export function hasAnyFilter(f: RecordFilters): boolean {
+  return !!f.status || !!f.categoryNames || !!f.departmentId || f.untaggedDepartment;
+}
+
+export function describeRecordFilters(f: RecordFilters, departmentName?: string): string[] {
+  const parts: string[] = [];
+  if (f.status) parts.push(describeStatusFilter(f.status));
+  if (f.categoryNames) parts.push(f.categoryNames.join(", "));
+  if (f.untaggedDepartment) parts.push("No department");
+  else if (f.departmentId) parts.push(departmentName ?? "Department");
+  return parts;
+}

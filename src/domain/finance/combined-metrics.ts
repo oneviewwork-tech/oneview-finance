@@ -85,7 +85,10 @@ export const COMBINED_METRICS: Record<CombinedMetricKey, CombinedMetricSpec> = {
     label: "Salary Paid",
     description: "Payroll settled, by entity.",
     isMoney: true,
-    recordsPath: (slug) => `/operations/${slug}/outflow/all?status=PAID`,
+    // Category-scoped: without it this opened every paid expense, so the
+    // list bore no relation to the salary figure that was clicked.
+    recordsPath: (slug) =>
+      `/operations/${slug}/outflow/all?status=PAID&category=${encodeURIComponent("Salaries & Allowances")}`,
   },
   clientsClosed: {
     key: "clientsClosed",

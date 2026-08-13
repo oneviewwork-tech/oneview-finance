@@ -20,25 +20,25 @@ export const INSIGHTS: Record<InsightKey, InsightSpec> = {
   salary: {
     key: "salary",
     label: "Salary",
-    description: "Payroll paid this period.",
+    description: "Payroll paid",
     detailTitle: "Where payroll went, by department",
   },
   profit: {
     key: "profit",
     label: "Profit %",
-    description: "Revenue received less expenses paid, as a share of revenue.",
+    description: "Revenue received less expenses paid, as a share of revenue,",
     detailTitle: "What made up the profit",
   },
   loss: {
     key: "loss",
     label: "Loss %",
-    description: "How far expenses paid exceeded revenue received.",
+    description: "How far expenses paid exceeded revenue received,",
     detailTitle: "What drove the loss",
   },
   paymentSpeed: {
     key: "paymentSpeed",
     label: "Client Payment Speed",
-    description: "Average days from a deal being booked to the first payment arriving.",
+    description: "Average days from a deal being booked to the first payment arriving,",
     detailTitle: "How long each client took to pay",
   },
 };

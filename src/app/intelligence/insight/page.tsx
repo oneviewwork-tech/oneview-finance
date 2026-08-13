@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { notFound, redirect } from "next/navigation";
+import { notFound } from "next/navigation";
 import { ArrowLeft, ArrowRight } from "lucide-react";
 import type { Currency } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
@@ -8,7 +8,7 @@ import { formatMoney, formatDate } from "@/lib/format";
 import { entitySlug } from "@/lib/entities";
 import { parseRangeSelection, resolveSelection, describeSelectionLong } from "@/domain/finance/date-range";
 import { parseInsight } from "@/domain/finance/insight-metrics";
-import { lossMargin, profitMargin } from "@/domain/finance/profitability";
+import { lossMargin, profitMargin, SALARY_CATEGORY_NAMES } from "@/domain/finance/profitability";
 import { getSalarySummary, getProfitability, getPaymentLag } from "@/services/finance/profitability";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -73,7 +73,7 @@ export default async function InsightPage({
         <SalaryDetail entityId={entity.id} range={range} currency={currency} slug={slug} showOpsLinks={showOpsLinks} title={insight.detailTitle} />
       )}
       {(insight.key === "profit" || insight.key === "loss") && (
-        <ProfitDetail entityId={entity.id} range={range} currency={currency} mode={insight.key} title={insight.detailTitle} />
+        <ProfitDetail entityId={entity.id} range={range} currency={currency} mode={insight.key} />
       )}
       {insight.key === "paymentSpeed" && (
         <PaymentSpeedDetail entityId={entity.id} range={range} currency={currency} title={insight.detailTitle} />
@@ -151,8 +151,15 @@ async function SalaryDetail({
                     <td className="py-2.5 text-right font-medium tabular-nums">{formatMoney(d.pending, currency)}</td>
                     {showOpsLinks && (
                       <td className="py-2.5 text-right">
+                        {/* Carries the payroll category AND this row's
+                            department, so the list that opens is the rows
+                            that made up this line — not every paid expense. */}
                         <Link
-                          href={`/operations/${slug}/outflow/all`}
+                          href={
+                            `/operations/${slug}/outflow/all` +
+                            `?category=${encodeURIComponent(SALARY_CATEGORY_NAMES.join(","))}` +
+                            `&department=${d.departmentId ?? "none"}`
+                          }
                           className="inline-flex items-center gap-1 text-label font-medium text-brand transition-ui hover:underline"
                         >
                           Records
@@ -176,13 +183,11 @@ async function ProfitDetail({
   range,
   currency,
   mode,
-  title,
 }: {
   entityId: string;
   range: { from: Date; to: Date };
   currency: Currency;
   mode: "profit" | "loss";
-  title: string;
 }) {
   const p = await getProfitability(entityId, range);
   const margin = mode === "loss" ? lossMargin(p) : profitMargin(p);
@@ -192,8 +197,12 @@ async function ProfitDetail({
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <Stat label="Revenue received" value={formatMoney(p.revenue, currency)} tone="success" />
         <Stat label="Expenses paid" value={formatMoney(p.expenses, currency)} tone="warning" />
+        {/* Labelled by what the number IS, not by which page you opened.
+            Driving the label off `mode` printed "Loss" over a profit while
+            the breakdown below said "Profit" — two figures contradicting
+            each other on one screen. */}
         <Stat
-          label={mode === "loss" ? "Loss" : "Profit"}
+          label={p.isLoss ? "Loss" : "Profit"}
           value={formatMoney(p.profit.abs(), currency)}
           tone={p.isLoss ? "destructive" : "success"}
         />
@@ -202,7 +211,9 @@ async function ProfitDetail({
 
       <Card>
         <CardHeader>
-          <CardTitle>{title}</CardTitle>
+          {/* Same rule as the tile: describe what happened, not which page
+              was opened. "What drove the loss" over a profit is nonsense. */}
+          <CardTitle>{p.isLoss ? "What drove the loss" : "What made up the profit"}</CardTitle>
           <CardDescription>
             Cash basis — money actually received against money actually paid, so this ties to the Net Position tile.
             Revenue excludes tax, which is collected for the government rather than earned.
@@ -222,6 +233,17 @@ async function ProfitDetail({
               </tr>
             </tbody>
           </table>
+          {mode === "loss" && !p.isLoss && (
+            <p className="mt-3 rounded-lg border border-success/30 bg-success-subtle px-3 py-2 text-sm text-success">
+              No loss this period — revenue covered every expense paid, leaving a profit of{" "}
+              {formatMoney(p.profit, currency)}.
+            </p>
+          )}
+          {mode === "profit" && p.isLoss && (
+            <p className="mt-3 rounded-lg border border-destructive/30 bg-destructive-subtle px-3 py-2 text-sm text-destructive">
+              No profit this period — expenses paid exceeded revenue received by {formatMoney(p.profit.abs(), currency)}.
+            </p>
+          )}
           {p.revenue.eq(0) && (
             <p className="mt-3 text-metadata">
               No revenue was received in this period, so the percentage is shown as 0% rather than as a division by

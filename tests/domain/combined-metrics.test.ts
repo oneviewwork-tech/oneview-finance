@@ -36,9 +36,15 @@ describe("COMBINED_METRICS", () => {
     expect(nonMoney).toEqual(["clientsClosed"]);
   });
 
-  it("includes salary, which drills to the entity split rather than one list", () => {
+  // Scoped to the payroll category, not just PAID: without it this opened
+  // every paid expense, so the list bore no relation to the salary figure
+  // that was clicked.
+  it("drills salary into payroll rows, not every paid expense", () => {
     expect(COMBINED_METRICS.salaryPaid.isMoney).toBe(true);
-    expect(COMBINED_METRICS.salaryPaid.recordsPath!("uae")).toBe("/operations/uae/outflow/all?status=PAID");
+    const path = COMBINED_METRICS.salaryPaid.recordsPath!("uae");
+    expect(path).toContain("/operations/uae/outflow/all");
+    expect(path).toContain("status=PAID");
+    expect(decodeURIComponent(path)).toContain("category=Salaries & Allowances");
   });
 
   it("points money metrics at the records that make them up", () => {

@@ -89,6 +89,7 @@ export default async function InflowMonthPage({
   return (
     <LedgerGrid
       period={period}
+      entityId={entity.id}
       entityCode={entityCode}
       entityName={entity.name}
       transactionType="INFLOW"

@@ -9,6 +9,7 @@ import { createLedgerRow, updateLedgerRow, deleteLedgerRow, type LedgerRowPatch 
 import { formatMoney } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { ExportMenu } from "@/components/finance/export-menu";
 import { type Period, periodLabel, formatPeriodKey } from "@/domain/finance/period";
 
 export interface GridOption {
@@ -92,6 +93,7 @@ function statusOf(amount: number, paid: number): "PENDING" | "PARTIAL" | "PAID" 
  */
 export function LedgerGrid({
   period,
+  entityId,
   entityCode,
   entityName,
   transactionType,
@@ -103,6 +105,7 @@ export function LedgerGrid({
   labels,
 }: {
   period: Period;
+  entityId: string;
   entityCode: string;
   entityName: string;
   transactionType: "INFLOW" | "OUTFLOW";
@@ -309,6 +312,16 @@ export function LedgerGrid({
             {labels.title} · {rows.length} {rows.length === 1 ? "entry" : "entries"} · {currency}
             {editingId ? " · editing a row — changes save as you leave each cell" : ""}
           </p>
+        </div>
+        <div className="flex items-center gap-2">
+          {/* Scoped to this month, so what downloads is the sheet on screen
+              rather than the entity's whole history. */}
+          <ExportMenu
+            entityId={entityId}
+            type={transactionType}
+            month={formatPeriodKey(period)}
+            label={`Download ${periodLabel(period)}`}
+          />
         </div>
         {canWrite && (
           <div className="flex items-center gap-2">

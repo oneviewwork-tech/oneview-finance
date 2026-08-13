@@ -13,8 +13,19 @@ import { Button } from "@/components/ui/button";
 export function ExportMenu({
   entityId,
   type,
+  month,
+  label,
 }: {
   entityId: string;
+  /**
+   * Restrict the export to one month ("2026-08"). Omitted, the endpoint
+   * reads the absent range as "the full history", which is what the entity
+   * overview wants.
+   */
+  month?: string;
+  /** Override the trigger's text — "Download August 2026" reads better than
+   *  a bare "Export" when the menu is already scoped to a month. */
+  label?: string;
   /**
    * Which table the CSV option exports. Omit on a page that isn't about one
    * of them (the entity overview) and both CSVs are offered instead — Excel
@@ -45,8 +56,12 @@ export function ExportMenu({
     };
   }, [open]);
 
-  // No range params — the endpoint reads that as "export the full history".
-  const base = `/api/export/transactions?entityId=${encodeURIComponent(entityId)}`;
+  // Without range params the endpoint exports the full history; with them it
+  // scopes to that month, reusing the same MONTH selection the dashboard
+  // filters already speak.
+  const base =
+    `/api/export/transactions?entityId=${encodeURIComponent(entityId)}` +
+    (month ? `&range=MONTH&month=${encodeURIComponent(month)}` : "");
   const csvOptions = type
     ? [
         {
@@ -90,7 +105,7 @@ export function ExportMenu({
         className="gap-1.5"
       >
         <Download className="h-3.5 w-3.5" />
-        Export
+        {label ?? "Export"}
       </Button>
 
       {open && (

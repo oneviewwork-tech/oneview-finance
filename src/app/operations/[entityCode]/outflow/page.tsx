@@ -19,7 +19,9 @@ export default async function OutflowMonthsPage({ params }: { params: Promise<{ 
   const user = await requireUser();
   const canWrite = canWriteEntity(user.role, entity.code);
 
-  const months = await listMonths(entity.id, "OUTFLOW");
+  // Empty shells are filtered out: a card with nothing behind it is noise,
+  // and creating a month already drops you straight into its sheet.
+  const months = (await listMonths(entity.id, "OUTFLOW")).filter((m) => m.rowCount > 0);
 
   return (
     <div>

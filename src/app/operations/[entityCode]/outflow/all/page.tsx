@@ -1,7 +1,12 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { requireEntityBySlug } from "@/lib/entities";
-import { parseStatusFilter, statusWhereClause, describeStatusFilter } from "@/domain/finance/transaction-filter";
+import {
+  statusWhereClause,
+  parseRecordFilters,
+  hasAnyFilter,
+  describeRecordFilters,
+} from "@/domain/finance/transaction-filter";
 import { Button } from "@/components/ui/button";
 import { ExportMenu } from "@/components/finance/export-menu";
 import { ActiveFilterChip } from "@/components/finance/active-filter-chip";
@@ -19,25 +24,34 @@ export default async function OutflowAllRecordsPage({
   searchParams,
 }: {
   params: Promise<{ entityCode: string }>;
-  searchParams: Promise<{ status?: string }>;
+  searchParams: Promise<{ status?: string; category?: string; department?: string }>;
 }) {
   const { entityCode } = await params;
-  const { status } = await searchParams;
+  const query = await searchParams;
   const entity = await requireEntityBySlug(entityCode);
 
-  const filter = parseStatusFilter(status);
-  const statusClause = statusWhereClause(filter);
+  const filters = parseRecordFilters(query);
+  const statusClause = statusWhereClause(filters.status);
 
   const transactions = await prisma.financialTransaction.findMany({
     where: {
       entityId: entity.id,
       transactionType: "OUTFLOW",
       ...(statusClause ? { status: statusClause } : {}),
+      // Category and department narrow the list the same way the card that
+      // linked here narrowed its number, so the two agree.
+      ...(filters.categoryNames ? { category: { name: { in: filters.categoryNames } } } : {}),
+      ...(filters.departmentId ? { departmentId: filters.departmentId } : {}),
+      ...(filters.untaggedDepartment ? { departmentId: null } : {}),
     },
     include: { category: true, expenseType: true },
     orderBy: { transactionDate: "desc" },
     take: 200,
   });
+
+  const department = filters.departmentId
+    ? await prisma.department.findUnique({ where: { id: filters.departmentId }, select: { name: true } })
+    : null;
 
   const rows = transactions.map((txn) => ({
     id: txn.id,
@@ -70,10 +84,10 @@ export default async function OutflowAllRecordsPage({
         </div>
       </div>
 
-      {filter && (
-        <div className="mt-3">
+      {hasAnyFilter(filters) && (
+        <div className="mt-3 flex flex-wrap items-center gap-2">
           <ActiveFilterChip
-            label={describeStatusFilter(filter)}
+            label={describeRecordFilters(filters, department?.name).join(" · ")}
             clearHref={`/operations/${entityCode}/outflow/all`}
           />
         </div>
