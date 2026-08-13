@@ -1,74 +1,62 @@
 import Link from "next/link";
-import { prisma } from "@/lib/prisma";
 import { requireEntityBySlug } from "@/lib/entities";
-import { calculateCollectedFraction } from "@/domain/finance/calculations";
-import { parseStatusFilter, statusWhereClause, describeStatusFilter } from "@/domain/finance/transaction-filter";
-import { Button } from "@/components/ui/button";
+import { requireUser, canWriteEntity } from "@/lib/rbac";
+import { listMonths } from "@/services/finance/ledger-months";
 import { ExportMenu } from "@/components/finance/export-menu";
-import { ActiveFilterChip } from "@/components/finance/active-filter-chip";
-import { InflowTable } from "./inflow-table";
+import { MonthCards } from "@/components/finance/month-cards";
+import { Button } from "@/components/ui/button";
 
-export default async function InflowListPage({
-  params,
-  searchParams,
-}: {
-  params: Promise<{ entityCode: string }>;
-  searchParams: Promise<{ status?: string }>;
-}) {
+/**
+ * Inflow, organised by month rather than as one long list.
+ *
+ * Mirrors the workbook: one sheet per month. The flat list is still there
+ * under /all, because cross-month questions ("what's uncollected?") can't be
+ * answered from a single month.
+ */
+export default async function InflowMonthsPage({ params }: { params: Promise<{ entityCode: string }> }) {
   const { entityCode } = await params;
-  const { status } = await searchParams;
   const entity = await requireEntityBySlug(entityCode);
+  const user = await requireUser();
+  const canWrite = canWriteEntity(user.role, entity.code);
 
-  // Lets a dashboard tile deep-link into the rows behind its number.
-  const filter = parseStatusFilter(status);
-  const statusClause = statusWhereClause(filter);
-
-  const transactions = await prisma.financialTransaction.findMany({
-    where: {
-      entityId: entity.id,
-      transactionType: "INFLOW",
-      ...(statusClause ? { status: statusClause } : {}),
-    },
-    include: { client: true },
-    orderBy: { transactionDate: "desc" },
-    take: 200,
-  });
-
-  const rows = transactions.map((txn) => ({
-    id: txn.id,
-    transactionDate: txn.transactionDate.toISOString(),
-    clientName: txn.client?.name ?? "-",
-    description: txn.description,
-    dealValue: txn.originalAmount.toNumber(),
-    received: txn.paidAmount.toNumber(),
-    collectedFraction: calculateCollectedFraction(txn.originalAmount, txn.paidAmount).toNumber(),
-    status: txn.status,
-    currency: txn.originalCurrency,
-  }));
+  const months = await listMonths(entity.id, "INFLOW");
 
   return (
     <div>
-      <div className="flex items-center justify-between">
-        <h2 className="text-section-title">Inflow · clients closed and payments received</h2>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <h2 className="text-section-title">Inflow Tracker</h2>
+          <p className="mt-0.5 text-page-subtitle">Clients closed and payments received, one sheet per month.</p>
+        </div>
         <div className="flex items-center gap-2">
           <ExportMenu entityId={entity.id} type="INFLOW" />
-          <Link href={`/operations/${entityCode}/inflow/new`}>
-            <Button size="sm">Add inflow</Button>
+          <Link href={`/operations/${entityCode}/inflow/all`}>
+            <Button size="sm" variant="outline">
+              All records
+            </Button>
           </Link>
         </div>
       </div>
 
-      {filter && (
-        <div className="mt-3">
-          <ActiveFilterChip
-            label={describeStatusFilter(filter)}
-            clearHref={`/operations/${entityCode}/inflow`}
-          />
-        </div>
-      )}
-
-      <div className="mt-4">
-        <InflowTable rows={rows} entityCode={entityCode} entityName={entity.name} />
+      <div className="mt-5">
+        <MonthCards
+          months={months.map((m) => ({
+            key: m.key,
+            year: m.year,
+            month: m.month,
+            total: m.total.toNumber(),
+            settled: m.settled.toNumber(),
+            outstanding: m.outstanding.toNumber(),
+            rowCount: m.rowCount,
+            isEmpty: m.isEmpty,
+          }))}
+          entityCode={entityCode}
+          currency={entity.baseCurrency}
+          basePath={`/operations/${entityCode}/inflow`}
+          canWrite={canWrite}
+          totalLabel="Deal value"
+          settledLabel="Received"
+        />
       </div>
     </div>
   );

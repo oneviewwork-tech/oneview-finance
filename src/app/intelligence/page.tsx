@@ -390,7 +390,7 @@ export default async function IntelligencePage({
           trend={inflowTrend}
           delta={{ percentChange: pct(overview.totalInflowReceived, previousOverview.totalInflowReceived), upIsGood: true }}
           comparisonLabel={comparisonLabel}
-          href={opsHref(`/operations/${slug}/inflow`)}
+          href={opsHref(`/operations/${slug}/inflow/all`)}
         />
         <KpiCard
           label="Total Outflow (Due)"
@@ -400,7 +400,7 @@ export default async function IntelligencePage({
           trend={outflowTrend}
           delta={{ percentChange: pct(overview.totalOutflowDue, previousOverview.totalOutflowDue), upIsGood: false }}
           comparisonLabel={comparisonLabel}
-          href={opsHref(`/operations/${slug}/outflow`)}
+          href={opsHref(`/operations/${slug}/outflow/all`)}
         />
         <KpiCard
           label="Liabilities"
@@ -411,7 +411,7 @@ export default async function IntelligencePage({
           trend={pendingTrend}
           delta={{ percentChange: pct(overview.outflowPending, previousOverview.outflowPending), upIsGood: false }}
           comparisonLabel={comparisonLabel}
-          href={opsHref(`/operations/${slug}/outflow?status=unpaid`)}
+          href={opsHref(`/operations/${slug}/outflow/all?status=unpaid`)}
         />
         <KpiCard
           label="% Outflow Settled"
@@ -420,7 +420,7 @@ export default async function IntelligencePage({
           tone="success"
           progress={overview.percentOutflowSettled.toNumber()}
           sublabel={`${formatMoney(overview.outflowPaid, currency)} settled`}
-          href={opsHref(`/operations/${slug}/outflow?status=PAID`)}
+          href={opsHref(`/operations/${slug}/outflow/all?status=PAID`)}
         />
         <KpiCard
           label="Receivables"
@@ -428,7 +428,7 @@ export default async function IntelligencePage({
           sublabel="Still owed by clients"
           icon={HandCoins}
           tone="warning"
-          href={opsHref(`/operations/${slug}/inflow?status=unpaid`)}
+          href={opsHref(`/operations/${slug}/inflow/all?status=unpaid`)}
         />
         <KpiCard
           label="Clients Closed"
@@ -451,14 +451,14 @@ export default async function IntelligencePage({
           icon={PieChart}
           tone="success"
           trend={outflowTrend}
-          href={opsHref(`/operations/${slug}/outflow?status=PAID`)}
+          href={opsHref(`/operations/${slug}/outflow/all?status=PAID`)}
         />
         <KpiCard
           label="Open Receivables"
           value={String(receivables.rows.length)}
           sublabel="Deals not fully collected"
           icon={HandCoins}
-          href={opsHref(`/operations/${slug}/inflow?status=unpaid`)}
+          href={opsHref(`/operations/${slug}/inflow/all?status=unpaid`)}
         />
       </div>
 
@@ -796,10 +796,10 @@ export default async function IntelligencePage({
       </Card>
 
       <div className="flex gap-4 text-label font-medium">
-        <Link href={`/operations/${slug}/inflow`} className="text-brand transition-ui hover:underline">
+        <Link href={`/operations/${slug}/inflow/all`} className="text-brand transition-ui hover:underline">
           View all Inflow →
         </Link>
-        <Link href={`/operations/${slug}/outflow`} className="text-brand transition-ui hover:underline">
+        <Link href={`/operations/${slug}/outflow/all`} className="text-brand transition-ui hover:underline">
           View all Outflow →
         </Link>
       </div>

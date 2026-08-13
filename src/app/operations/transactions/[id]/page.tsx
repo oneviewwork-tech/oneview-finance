@@ -36,7 +36,7 @@ export default async function TransactionDetailPage({ params }: { params: Promis
   const balance = txn.originalAmount.minus(txn.paidAmount);
   const isInflow = txn.transactionType === "INFLOW";
   const slug = entitySlug(txn.entity.code);
-  const listHref = isInflow ? `/operations/${slug}/inflow` : `/operations/${slug}/outflow`;
+  const listHref = isInflow ? `/operations/${slug}/inflow/all` : `/operations/${slug}/outflow/all`;
 
   return (
     <div className="mx-auto max-w-4xl">

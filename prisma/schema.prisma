@@ -65,6 +65,31 @@ model User {
   exchangeRates       ExchangeRate[]
   sessions            UserSession[]
   passkeyResetTokens  PasskeyResetToken[]
+  ledgerMonths        LedgerMonth[]       @relation("LedgerMonthCreatedBy")
+}
+
+/// A month of the books for one entity — the app's equivalent of one
+/// workbook file ("Dubai — August 2026"), covering both trackers.
+///
+/// Exists as a row so a month can be opened before anything is entered in
+/// it. Months are otherwise derivable from transaction dates, but a
+/// freshly created empty month would then vanish on reload, and the whole
+/// point is to create the month first and fill it in afterwards.
+model LedgerMonth {
+  id       String         @id @default(cuid())
+  entityId String
+  entity   BusinessEntity @relation(fields: [entityId], references: [id], onDelete: Cascade)
+  /// Four-digit year and 1-12 month, stored separately rather than as a date
+  /// so there is no timezone in which "August" becomes July.
+  year     Int
+  month    Int
+
+  createdById String
+  createdBy   User     @relation("LedgerMonthCreatedBy", fields: [createdById], references: [id])
+  createdAt   DateTime @default(now())
+
+  @@unique([entityId, year, month])
+  @@index([entityId, year, month])
 }
 
 /// One-time code emailed to reset a forgotten passkey.
@@ -163,6 +188,7 @@ model BusinessEntity {
   transactions FinancialTransaction[]
   clients      Client[]
   vendors      Vendor[]
+  ledgerMonths LedgerMonth[]
 }
 
 // ── Master data (was the "Lists" sheet — now DB-backed and editable) ──

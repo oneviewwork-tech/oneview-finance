@@ -37,9 +37,9 @@ describe("COMBINED_METRICS", () => {
   });
 
   it("points money metrics at the records that make them up", () => {
-    expect(COMBINED_METRICS.outflowPending.recordsPath!("uae")).toBe("/operations/uae/outflow?status=unpaid");
-    expect(COMBINED_METRICS.receivables.recordsPath!("india")).toBe("/operations/india/inflow?status=unpaid");
-    expect(COMBINED_METRICS.outflowPaid.recordsPath!("uae")).toBe("/operations/uae/outflow?status=PAID");
+    expect(COMBINED_METRICS.outflowPending.recordsPath!("uae")).toBe("/operations/uae/outflow/all?status=unpaid");
+    expect(COMBINED_METRICS.receivables.recordsPath!("india")).toBe("/operations/india/inflow/all?status=unpaid");
+    expect(COMBINED_METRICS.outflowPaid.recordsPath!("uae")).toBe("/operations/uae/outflow/all?status=PAID");
   });
 
   // Net position is derived from two other figures; there is no single list

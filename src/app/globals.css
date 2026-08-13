@@ -50,6 +50,13 @@
 }
 
 :root {
+  /* Sidebar width, as a variable because two different places need to agree
+     on it: the fixed <aside> itself, and the left padding of every page
+     layout. Those layouts are server components and can't read the client's
+     collapsed state, so the state lives on <html> (set pre-paint by
+     theme-init.js) and both sides read this token. */
+  --sidebar-w: 16rem;
+
   /* Tells the browser which way to paint the controls it draws itself — the
      native <select> popup list, <input type="date"> calendars, spinners and
      default scrollbars. Without it those stay light in dark mode, so a dark
@@ -276,5 +283,20 @@ body {
   ::selection {
     background: var(--color-brand-subtle);
     color: var(--color-brand);
+  }
+}
+
+/* Collapsed sidebar: icons only, labels hidden. Wide enough that a 16px
+   icon still has real padding around it and stays an easy click target. */
+:root[data-sidebar="collapsed"] {
+  --sidebar-w: 4.25rem;
+}
+
+/* Width changes are animated, but only when the user has not asked for
+   reduced motion — a sidebar sliding is decoration, not information. */
+@media (prefers-reduced-motion: no-preference) {
+  .sidebar-shell,
+  .sidebar-offset {
+    transition: width 180ms ease, padding-left 180ms ease;
   }
 }
