@@ -22,6 +22,12 @@ export interface InflowSummary {
   newClientsClosed: number;
   existingOrRepeatClientsClosed: number;
   averageDealSize: Prisma.Decimal;
+  /** Invoiced and received including tax — what the client actually owes/paid. */
+  grossDealValue: Prisma.Decimal;
+  grossReceived: Prisma.Decimal;
+  /** Tax charged on those invoices, and the share of it collected so far. */
+  taxInvoiced: Prisma.Decimal;
+  taxCollected: Prisma.Decimal;
 }
 
 export async function getInflowSummary(entityId: string, range?: DateRange): Promise<InflowSummary> {
@@ -31,25 +37,60 @@ export async function getInflowSummary(entityId: string, range?: DateRange): Pro
     transactionDate: rangeFilter(range),
   };
 
-  const [agg, clientsClosed, newClientsClosed] = await Promise.all([
+  const dateClause = range
+    ? Prisma.sql`AND t."transactionDate" BETWEEN ${range.from} AND ${range.to}`
+    : Prisma.empty;
+
+  const [agg, taxAgg, clientsClosed, newClientsClosed] = await Promise.all([
     prisma.financialTransaction.aggregate({
       where,
-      _sum: { originalAmount: true, paidAmount: true },
+      _sum: { originalAmount: true, paidAmount: true, taxAmount: true },
     }),
+    // Tax is collected in step with the client's payments, not all at once
+    // when the invoice is raised — so the tax inside a part-paid invoice is
+    // the same proportion of it that has actually been received. Done in SQL
+    // because it is a per-row ratio, not something a SUM can express.
+    prisma.$queryRaw<{ collected: string }[]>`
+      SELECT COALESCE(SUM(
+        t."taxAmount" * CASE WHEN t."originalAmount" > 0
+          THEN t."paidAmount" / t."originalAmount" ELSE 0 END
+      ), 0)::text AS collected
+      FROM "FinancialTransaction" t
+      WHERE t."entityId" = ${entityId}
+        AND t."transactionType"::text = 'INFLOW'
+        ${dateClause}
+    `,
     prisma.financialTransaction.count({ where }),
     prisma.financialTransaction.count({
       where: { ...where, client: { clientType: { name: "New Client" } } },
     }),
   ]);
 
-  const totalDealValue = agg._sum.originalAmount ?? new Decimal(0);
-  const totalReceived = agg._sum.paidAmount ?? new Decimal(0);
+  // Gross figures — what the client owes and has handed over, tax included.
+  // These are what receivables and collection rates must use: a fully paid
+  // invoice has to read as fully paid.
+  const grossDealValue = agg._sum.originalAmount ?? new Decimal(0);
+  const grossReceived = agg._sum.paidAmount ?? new Decimal(0);
+  const taxInvoiced = agg._sum.taxAmount ?? new Decimal(0);
+  const taxCollected = new Decimal(taxAgg[0]?.collected ?? 0);
+
+  // Revenue is net of tax. Tax collected is money held on the government's
+  // behalf, not income — reporting it as revenue would overstate the
+  // business by exactly the tax rate.
+  const totalDealValue = grossDealValue.minus(taxInvoiced);
+  const totalReceived = grossReceived.minus(taxCollected);
 
   return {
     totalDealValue,
     totalReceived,
-    balanceReceivable: totalDealValue.minus(totalReceived),
-    collectionRate: calculateCollectedFraction(totalDealValue, totalReceived),
+    grossDealValue,
+    grossReceived,
+    taxInvoiced,
+    taxCollected,
+    // Receivable is a gross figure: what is still to be collected from the
+    // client includes the tax they have not yet paid.
+    balanceReceivable: grossDealValue.minus(grossReceived),
+    collectionRate: calculateCollectedFraction(grossDealValue, grossReceived),
     clientsClosed,
     newClientsClosed,
     existingOrRepeatClientsClosed: clientsClosed - newClientsClosed,
