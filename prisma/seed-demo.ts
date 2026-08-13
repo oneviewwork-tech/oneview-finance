@@ -36,6 +36,8 @@ interface OutflowSeed {
   amountPaid: string; // "0" for PENDING
   paymentMethod?: string;
   vendor?: string;
+  /** Left undefined for company-wide overhead that isn't one team's cost. */
+  department?: string;
 }
 
 interface InflowSeed {
@@ -47,65 +49,80 @@ interface InflowSeed {
   amountReceived: string;
   paymentMethod?: string;
   closedBy?: string;
+  /** The team delivering the work — what makes a department a profit centre. */
+  department?: string;
 }
+
+// Service teams, not cost buckets: a client buys SEO or a website, and the
+// team that delivers it both earns the fee and incurs the costs. Operations
+// is deliberately included as a pure overhead team — it never earns, which is
+// what every department looked like before inflow could be tagged.
+const DEPARTMENTS = [
+  "Social Media",
+  "Web Development",
+  "SEO & Content",
+  "Paid Ads",
+  "Branding & Creative",
+  "Operations",
+];
 
 const UAE_OUTFLOW: OutflowSeed[] = [
   { date: d(2026, 8, 1), description: "Base Salary — August", category: "Salaries & Allowances", expenseType: "Current Month", amountDue: "32000", amountPaid: "32000", paymentMethod: "Bank Transfer" },
   { date: d(2026, 8, 1), description: "Sales Team Salary — August", category: "Salaries & Allowances", expenseType: "Current Month", amountDue: "18500", amountPaid: "18500", paymentMethod: "Bank Transfer" },
-  { date: d(2026, 8, 3), description: "Office Rent — August", category: "Rent & Utilities", expenseType: "Current Month", amountDue: "22000", amountPaid: "15000", paymentMethod: "Cheque" },
-  { date: d(2026, 8, 4), description: "Etisalat Business Bill", category: "Telecom & Internet", expenseType: "Current Month", amountDue: "1450", amountPaid: "1450", paymentMethod: "Auto-Debit" },
+  { date: d(2026, 8, 3), description: "Office Rent — August", category: "Rent & Utilities", expenseType: "Current Month", amountDue: "22000", amountPaid: "15000", paymentMethod: "Cheque", department: "Operations" },
+  { date: d(2026, 8, 4), description: "Etisalat Business Bill", category: "Telecom & Internet", expenseType: "Current Month", amountDue: "1450", amountPaid: "1450", paymentMethod: "Auto-Debit", department: "Operations" },
   { date: d(2026, 8, 5), description: "Client Dinner — Marina Bay", category: "Travel & Meeting", expenseType: "Current Month", amountDue: "2100", amountPaid: "0" },
-  { date: d(2026, 8, 6), description: "New Laptops x2", category: "Equipment", expenseType: "Current Month", amountDue: "8600", amountPaid: "8600", paymentMethod: "Card", vendor: "Emirates Office Supplies" },
-  { date: d(2026, 8, 8), description: "Video Editor — Freelance", category: "Freelancers & Production", expenseType: "Current Month", amountDue: "4200", amountPaid: "2000", paymentMethod: "Bank Transfer" },
-  { date: d(2026, 8, 9), description: "Google Ads — August", category: "Marketing & Advertising", expenseType: "Current Month", amountDue: "12000", amountPaid: "12000", paymentMethod: "Card" },
-  { date: d(2026, 8, 9), description: "Instagram Campaign — Ramadan Prep", category: "Marketing & Advertising", expenseType: "Current Month", amountDue: "6500", amountPaid: "0" },
-  { date: d(2026, 8, 10), description: "Adobe Creative Cloud", category: "Software & Subscriptions", expenseType: "Current Month", amountDue: "980", amountPaid: "980", paymentMethod: "Card" },
-  { date: d(2026, 8, 10), description: "Notion Team Plan", category: "Software & Subscriptions", expenseType: "Current Month", amountDue: "450", amountPaid: "450", paymentMethod: "Card" },
-  { date: d(2026, 8, 11), description: "Employee Visa Renewal", category: "Visa & Government Fees", expenseType: "Current Month", amountDue: "5200", amountPaid: "0" },
-  { date: d(2026, 8, 11), description: "WPS Processing Fee", category: "Bank & Salary Charges", expenseType: "Current Month", amountDue: "320", amountPaid: "320", paymentMethod: "Auto-Debit" },
+  { date: d(2026, 8, 6), description: "New Laptops x2", category: "Equipment", expenseType: "Current Month", amountDue: "8600", amountPaid: "8600", paymentMethod: "Card", vendor: "Emirates Office Supplies", department: "Operations" },
+  { date: d(2026, 8, 8), description: "Video Editor — Freelance", category: "Freelancers & Production", expenseType: "Current Month", amountDue: "4200", amountPaid: "2000", paymentMethod: "Bank Transfer", department: "Branding & Creative" },
+  { date: d(2026, 8, 9), description: "Google Ads — August", category: "Marketing & Advertising", expenseType: "Current Month", amountDue: "12000", amountPaid: "12000", paymentMethod: "Card", department: "Paid Ads" },
+  { date: d(2026, 8, 9), description: "Instagram Campaign — Ramadan Prep", category: "Marketing & Advertising", expenseType: "Current Month", amountDue: "6500", amountPaid: "0", department: "Social Media" },
+  { date: d(2026, 8, 10), description: "Adobe Creative Cloud", category: "Software & Subscriptions", expenseType: "Current Month", amountDue: "980", amountPaid: "980", paymentMethod: "Card", department: "Branding & Creative" },
+  { date: d(2026, 8, 10), description: "Notion Team Plan", category: "Software & Subscriptions", expenseType: "Current Month", amountDue: "450", amountPaid: "450", paymentMethod: "Card", department: "Operations" },
+  { date: d(2026, 8, 11), description: "Employee Visa Renewal", category: "Visa & Government Fees", expenseType: "Current Month", amountDue: "5200", amountPaid: "0", department: "Operations" },
+  { date: d(2026, 8, 11), description: "WPS Processing Fee", category: "Bank & Salary Charges", expenseType: "Current Month", amountDue: "320", amountPaid: "320", paymentMethod: "Auto-Debit", department: "Operations" },
   { date: d(2026, 8, 7), description: "BD Commission — July", category: "Incentives & Commissions", expenseType: "Old Dues / Arrears", amountDue: "7800", amountPaid: "5000", paymentMethod: "Bank Transfer" },
-  { date: d(2026, 8, 2), description: "Pantry Supplies", category: "Office & Misc", expenseType: "Current Month", amountDue: "650", amountPaid: "650", paymentMethod: "Cash", vendor: "Emirates Office Supplies" },
-  { date: d(2026, 8, 6), description: "July Freelancer Balance", category: "Old Dues / Arrears", expenseType: "Old Dues / Arrears", amountDue: "3200", amountPaid: "0" },
+  { date: d(2026, 8, 2), description: "Pantry Supplies", category: "Office & Misc", expenseType: "Current Month", amountDue: "650", amountPaid: "650", paymentMethod: "Cash", vendor: "Emirates Office Supplies", department: "Operations" },
+  { date: d(2026, 8, 6), description: "July Freelancer Balance", category: "Old Dues / Arrears", expenseType: "Old Dues / Arrears", amountDue: "3200", amountPaid: "0", department: "Web Development" },
 ];
 
 const UAE_INFLOW: InflowSeed[] = [
-  { date: d(2026, 8, 2), clientName: "Gulf Retail LLC", clientType: "New Client", description: "SMM Retainer — 6 months", dealValue: "45000", amountReceived: "45000", paymentMethod: "Bank Transfer", closedBy: "Aswin KP" },
-  { date: d(2026, 8, 3), clientName: "Desert Rose Trading", clientType: "Existing Client", description: "Website Revamp", dealValue: "38000", amountReceived: "20000", paymentMethod: "Bank Transfer", closedBy: "Aswin KP" },
-  { date: d(2026, 8, 5), clientName: "Al Noor Enterprises", clientType: "Renewal", description: "Annual SEO Contract", dealValue: "60000", amountReceived: "60000", paymentMethod: "Cheque", closedBy: "Fathima R" },
-  { date: d(2026, 8, 6), clientName: "Falcon Wings Aviation", clientType: "One-Time Project", description: "Branding Package", dealValue: "25000", amountReceived: "10000", paymentMethod: "Bank Transfer", closedBy: "Fathima R" },
-  { date: d(2026, 8, 7), clientName: "Marina Bay Hospitality", clientType: "New Client", description: "Social Media Management", dealValue: "18000", amountReceived: "0", closedBy: "Aswin KP" },
-  { date: d(2026, 8, 8), clientName: "Oasis Wellness Spa", clientType: "Upsell", description: "Paid Ads Add-on", dealValue: "12000", amountReceived: "12000", paymentMethod: "Card", closedBy: "Fathima R" },
-  { date: d(2026, 8, 9), clientName: "Skyline Real Estate", clientType: "Existing Client", description: "Content Marketing", dealValue: "30000", amountReceived: "15000", paymentMethod: "Bank Transfer", closedBy: "Aswin KP" },
-  { date: d(2026, 8, 10), clientName: "Nova Tech Solutions", clientType: "New Client", description: "App Store Optimization", dealValue: "22000", amountReceived: "22000", paymentMethod: "Online", closedBy: "Fathima R" },
+  { date: d(2026, 8, 2), clientName: "Gulf Retail LLC", clientType: "New Client", description: "SMM Retainer — 6 months", dealValue: "45000", amountReceived: "45000", paymentMethod: "Bank Transfer", closedBy: "Aswin KP", department: "Social Media" },
+  { date: d(2026, 8, 3), clientName: "Desert Rose Trading", clientType: "Existing Client", description: "Website Revamp", dealValue: "38000", amountReceived: "20000", paymentMethod: "Bank Transfer", closedBy: "Aswin KP", department: "Web Development" },
+  { date: d(2026, 8, 5), clientName: "Al Noor Enterprises", clientType: "Renewal", description: "Annual SEO Contract", dealValue: "60000", amountReceived: "60000", paymentMethod: "Cheque", closedBy: "Fathima R", department: "SEO & Content" },
+  { date: d(2026, 8, 6), clientName: "Falcon Wings Aviation", clientType: "One-Time Project", description: "Branding Package", dealValue: "25000", amountReceived: "10000", paymentMethod: "Bank Transfer", closedBy: "Fathima R", department: "Branding & Creative" },
+  { date: d(2026, 8, 7), clientName: "Marina Bay Hospitality", clientType: "New Client", description: "Social Media Management", dealValue: "18000", amountReceived: "0", closedBy: "Aswin KP", department: "Social Media" },
+  { date: d(2026, 8, 8), clientName: "Oasis Wellness Spa", clientType: "Upsell", description: "Paid Ads Add-on", dealValue: "12000", amountReceived: "12000", paymentMethod: "Card", closedBy: "Fathima R", department: "Paid Ads" },
+  { date: d(2026, 8, 9), clientName: "Skyline Real Estate", clientType: "Existing Client", description: "Content Marketing", dealValue: "30000", amountReceived: "15000", paymentMethod: "Bank Transfer", closedBy: "Aswin KP", department: "SEO & Content" },
+  { date: d(2026, 8, 10), clientName: "Nova Tech Solutions", clientType: "New Client", description: "App Store Optimization", dealValue: "22000", amountReceived: "22000", paymentMethod: "Online", closedBy: "Fathima R", department: "Web Development" },
 ];
 
 const UAE_VENDORS = ["Dubai Print Co", "Gulf Facilities Management", "Emirates Office Supplies"];
 
 const INDIA_OUTFLOW: OutflowSeed[] = [
   { date: d(2026, 8, 1), description: "August Payroll", category: "Salaries & Allowances", expenseType: "Current Month", amountDue: "850000", amountPaid: "850000", paymentMethod: "Bank Transfer" },
-  { date: d(2026, 8, 2), description: "Office Rent — Bangalore", category: "Rent & Utilities", expenseType: "Current Month", amountDue: "145000", amountPaid: "100000", paymentMethod: "Bank Transfer" },
-  { date: d(2026, 8, 3), description: "Airtel Business Broadband", category: "Telecom & Internet", expenseType: "Current Month", amountDue: "18000", amountPaid: "18000", paymentMethod: "Auto-Debit" },
+  { date: d(2026, 8, 2), description: "Office Rent — Bangalore", category: "Rent & Utilities", expenseType: "Current Month", amountDue: "145000", amountPaid: "100000", paymentMethod: "Bank Transfer", department: "Operations" },
+  { date: d(2026, 8, 3), description: "Airtel Business Broadband", category: "Telecom & Internet", expenseType: "Current Month", amountDue: "18000", amountPaid: "18000", paymentMethod: "Auto-Debit", department: "Operations" },
   { date: d(2026, 8, 4), description: "Client Visit — Mumbai", category: "Travel & Meeting", expenseType: "Current Month", amountDue: "32000", amountPaid: "0" },
-  { date: d(2026, 8, 5), description: "Desktop Workstations", category: "Equipment", expenseType: "Current Month", amountDue: "185000", amountPaid: "185000", paymentMethod: "Bank Transfer", vendor: "Reliance Digital Enterprise" },
-  { date: d(2026, 8, 6), description: "Content Writers — Freelance", category: "Freelancers & Production", expenseType: "Current Month", amountDue: "65000", amountPaid: "30000", paymentMethod: "Bank Transfer" },
-  { date: d(2026, 8, 8), description: "Meta Ads — August", category: "Marketing & Advertising", expenseType: "Current Month", amountDue: "220000", amountPaid: "220000", paymentMethod: "Card" },
-  { date: d(2026, 8, 9), description: "LinkedIn Campaign", category: "Marketing & Advertising", expenseType: "Current Month", amountDue: "95000", amountPaid: "0" },
-  { date: d(2026, 8, 9), description: "Microsoft 365 Business", category: "Software & Subscriptions", expenseType: "Current Month", amountDue: "42000", amountPaid: "42000", paymentMethod: "Card" },
-  { date: d(2026, 8, 10), description: "GST Filing Charges", category: "Visa & Government Fees", expenseType: "Current Month", amountDue: "15000", amountPaid: "0" },
-  { date: d(2026, 8, 10), description: "NEFT Processing Fee", category: "Bank & Salary Charges", expenseType: "Current Month", amountDue: "4500", amountPaid: "4500", paymentMethod: "Auto-Debit" },
+  { date: d(2026, 8, 5), description: "Desktop Workstations", category: "Equipment", expenseType: "Current Month", amountDue: "185000", amountPaid: "185000", paymentMethod: "Bank Transfer", vendor: "Reliance Digital Enterprise", department: "Operations" },
+  { date: d(2026, 8, 6), description: "Content Writers — Freelance", category: "Freelancers & Production", expenseType: "Current Month", amountDue: "65000", amountPaid: "30000", paymentMethod: "Bank Transfer", department: "SEO & Content" },
+  { date: d(2026, 8, 8), description: "Meta Ads — August", category: "Marketing & Advertising", expenseType: "Current Month", amountDue: "220000", amountPaid: "220000", paymentMethod: "Card", department: "Paid Ads" },
+  { date: d(2026, 8, 9), description: "LinkedIn Campaign", category: "Marketing & Advertising", expenseType: "Current Month", amountDue: "95000", amountPaid: "0", department: "Paid Ads" },
+  { date: d(2026, 8, 9), description: "Microsoft 365 Business", category: "Software & Subscriptions", expenseType: "Current Month", amountDue: "42000", amountPaid: "42000", paymentMethod: "Card", department: "Operations" },
+  { date: d(2026, 8, 10), description: "GST Filing Charges", category: "Visa & Government Fees", expenseType: "Current Month", amountDue: "15000", amountPaid: "0", department: "Operations" },
+  { date: d(2026, 8, 10), description: "NEFT Processing Fee", category: "Bank & Salary Charges", expenseType: "Current Month", amountDue: "4500", amountPaid: "4500", paymentMethod: "Auto-Debit", department: "Operations" },
   { date: d(2026, 8, 7), description: "Sales Team Bonus", category: "Incentives & Commissions", expenseType: "Current Month", amountDue: "120000", amountPaid: "80000", paymentMethod: "Bank Transfer" },
-  { date: d(2026, 8, 2), description: "Office Supplies", category: "Office & Misc", expenseType: "Current Month", amountDue: "12000", amountPaid: "12000", paymentMethod: "Cash" },
-  { date: d(2026, 8, 6), description: "June Vendor Balance", category: "Old Dues / Arrears", expenseType: "Old Dues / Arrears", amountDue: "48000", amountPaid: "0" },
+  { date: d(2026, 8, 2), description: "Office Supplies", category: "Office & Misc", expenseType: "Current Month", amountDue: "12000", amountPaid: "12000", paymentMethod: "Cash", department: "Operations" },
+  { date: d(2026, 8, 6), description: "June Vendor Balance", category: "Old Dues / Arrears", expenseType: "Old Dues / Arrears", amountDue: "48000", amountPaid: "0", department: "Web Development" },
 ];
 
 const INDIA_INFLOW: InflowSeed[] = [
-  { date: d(2026, 8, 2), clientName: "Zenith Retail Pvt Ltd", clientType: "New Client", description: "Digital Marketing Retainer", dealValue: "480000", amountReceived: "480000", paymentMethod: "Bank Transfer", closedBy: "Priya Menon" },
-  { date: d(2026, 8, 4), clientName: "Bharat Textiles", clientType: "Existing Client", description: "Website Development", dealValue: "350000", amountReceived: "200000", paymentMethod: "Bank Transfer", closedBy: "Priya Menon" },
-  { date: d(2026, 8, 5), clientName: "Aurora Hospitality Group", clientType: "Renewal", description: "Annual SEO Contract", dealValue: "600000", amountReceived: "600000", paymentMethod: "Cheque", closedBy: "Rohan Iyer" },
-  { date: d(2026, 8, 6), clientName: "Vertex Financial Services", clientType: "One-Time Project", description: "Brand Strategy", dealValue: "275000", amountReceived: "100000", paymentMethod: "Bank Transfer", closedBy: "Rohan Iyer" },
-  { date: d(2026, 8, 8), clientName: "Prime Realty Ventures", clientType: "New Client", description: "Social Media Management", dealValue: "180000", amountReceived: "0", closedBy: "Priya Menon" },
-  { date: d(2026, 8, 9), clientName: "Sunrise Foods Pvt Ltd", clientType: "Upsell", description: "Paid Campaign Add-on", dealValue: "95000", amountReceived: "95000", paymentMethod: "Online", closedBy: "Rohan Iyer" },
-  { date: d(2026, 8, 10), clientName: "Metro Logistics India", clientType: "Existing Client", description: "Content Marketing", dealValue: "220000", amountReceived: "110000", paymentMethod: "Bank Transfer", closedBy: "Priya Menon" },
+  { date: d(2026, 8, 2), clientName: "Zenith Retail Pvt Ltd", clientType: "New Client", description: "Digital Marketing Retainer", dealValue: "480000", amountReceived: "480000", paymentMethod: "Bank Transfer", closedBy: "Priya Menon", department: "Social Media" },
+  { date: d(2026, 8, 4), clientName: "Bharat Textiles", clientType: "Existing Client", description: "Website Development", dealValue: "350000", amountReceived: "200000", paymentMethod: "Bank Transfer", closedBy: "Priya Menon", department: "Web Development" },
+  { date: d(2026, 8, 5), clientName: "Aurora Hospitality Group", clientType: "Renewal", description: "Annual SEO Contract", dealValue: "600000", amountReceived: "600000", paymentMethod: "Cheque", closedBy: "Rohan Iyer", department: "SEO & Content" },
+  { date: d(2026, 8, 6), clientName: "Vertex Financial Services", clientType: "One-Time Project", description: "Brand Strategy", dealValue: "275000", amountReceived: "100000", paymentMethod: "Bank Transfer", closedBy: "Rohan Iyer", department: "Branding & Creative" },
+  { date: d(2026, 8, 8), clientName: "Prime Realty Ventures", clientType: "New Client", description: "Social Media Management", dealValue: "180000", amountReceived: "0", closedBy: "Priya Menon", department: "Social Media" },
+  { date: d(2026, 8, 9), clientName: "Sunrise Foods Pvt Ltd", clientType: "Upsell", description: "Paid Campaign Add-on", dealValue: "95000", amountReceived: "95000", paymentMethod: "Online", closedBy: "Rohan Iyer", department: "Paid Ads" },
+  { date: d(2026, 8, 10), clientName: "Metro Logistics India", clientType: "Existing Client", description: "Content Marketing", dealValue: "220000", amountReceived: "110000", paymentMethod: "Bank Transfer", closedBy: "Priya Menon", department: "SEO & Content" },
 ];
 
 const INDIA_VENDORS = ["Reliance Digital Enterprise", "Bangalore Facility Services"];
@@ -136,6 +153,19 @@ async function seedEntity(
   const expenseTypeId = (name: string) => expenseTypes.find((t) => t.name === name)?.id;
   const paymentMethodId = (name?: string) => (name ? paymentMethods.find((m) => m.name === name)?.id : undefined);
   const clientTypeId = (name: string) => clientTypes.find((t) => t.name === name)?.id;
+
+  // Departments are global (not per-entity), so upsert by name and reuse
+  // across both entities rather than creating duplicates on the second pass.
+  const departmentByName = new Map<string, string>();
+  for (const [i, name] of DEPARTMENTS.entries()) {
+    const dept = await prisma.department.upsert({
+      where: { name },
+      update: {},
+      create: { name, sortOrder: i },
+    });
+    departmentByName.set(name, dept.id);
+  }
+  const departmentId = (name?: string) => (name ? departmentByName.get(name) : undefined);
 
   const vendorByName = new Map<string, string>();
   for (const name of vendorNames) {
@@ -182,6 +212,7 @@ async function seedEntity(
           categoryId: categoryId(row.category),
           expenseTypeId: expenseTypeId(row.expenseType),
           vendorId: row.vendor ? vendorByName.get(row.vendor) : undefined,
+          departmentId: departmentId(row.department),
           description: row.description,
           paidAmount: amountPaid,
           status: calculateStatus(amountDue, amountPaid),
@@ -225,6 +256,7 @@ async function seedEntity(
           originalAmount: dealValue,
           originalCurrency: currency,
           clientId: client.id,
+          departmentId: departmentId(row.department),
           description: row.description,
           closedByName: row.closedBy,
           paidAmount: amountReceived,

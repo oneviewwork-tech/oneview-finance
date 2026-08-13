@@ -1,13 +1,14 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
-import { getDepartmentPaymentStatus } from "@/services/finance/summary";
+import { getDepartmentPerformance } from "@/services/finance/summary";
 
 const RANGE = { from: new Date(Date.UTC(2026, 7, 1)), to: new Date(Date.UTC(2026, 7, 31, 23, 59, 59, 999)) };
 
 let entityId: string;
 let userId: string;
-let deptAId: string;
-let deptBId: string;
+let deptAId: string; // earns more than it spends, fully collected
+let deptBId: string; // earns, but clients haven't fully paid
+let deptCId: string; // outflow only — a pure cost centre
 let deptUntaggedId: string; // has a Department row but zero transactions in range — must not appear
 
 beforeAll(async () => {
@@ -21,7 +22,7 @@ beforeAll(async () => {
     await prisma.financialTransaction.deleteMany({ where: { entityId: leftoverEntity.id } });
     await prisma.businessEntity.delete({ where: { id: leftoverEntity.id } });
   }
-  for (const name of ["_TEST Dept A", "_TEST Dept B", "_TEST Dept Unused"]) {
+  for (const name of ["_TEST Dept A", "_TEST Dept B", "_TEST Dept C", "_TEST Dept Unused"]) {
     const leftoverDept = await prisma.department.findUnique({ where: { name } });
     if (leftoverDept) await prisma.department.delete({ where: { id: leftoverDept.id } });
   }
@@ -31,27 +32,44 @@ beforeAll(async () => {
   });
   entityId = entity.id;
 
-  const [deptA, deptB, deptUnused] = await Promise.all([
+  const [deptA, deptB, deptC, deptUnused] = await Promise.all([
     prisma.department.create({ data: { name: "_TEST Dept A", sortOrder: 900 } }),
     prisma.department.create({ data: { name: "_TEST Dept B", sortOrder: 901 } }),
-    prisma.department.create({ data: { name: "_TEST Dept Unused", sortOrder: 902 } }),
+    prisma.department.create({ data: { name: "_TEST Dept C", sortOrder: 902 } }),
+    prisma.department.create({ data: { name: "_TEST Dept Unused", sortOrder: 903 } }),
   ]);
   deptAId = deptA.id;
   deptBId = deptB.id;
+  deptCId = deptC.id;
   deptUntaggedId = deptUnused.id;
 
-  const base = { entityId, originalCurrency: "AED" as const, createdById: userId, transactionType: "OUTFLOW" as const };
+  const base = { entityId, originalCurrency: "AED" as const, createdById: userId };
+  const inflow = { ...base, transactionType: "INFLOW" as const };
+  const outflow = { ...base, transactionType: "OUTFLOW" as const };
 
   await prisma.financialTransaction.createMany({
     data: [
-      // Dept A — both fully paid.
-      { ...base, departmentId: deptAId, transactionDate: new Date(Date.UTC(2026, 7, 3)), originalAmount: "1000", paidAmount: "1000", status: "PAID", description: "_TEST dept A salary 1" },
-      { ...base, departmentId: deptAId, transactionDate: new Date(Date.UTC(2026, 7, 10)), originalAmount: "500", paidAmount: "500", status: "PAID", description: "_TEST dept A salary 2" },
-      // Dept B — one paid, one still pending: delayed.
-      { ...base, departmentId: deptBId, transactionDate: new Date(Date.UTC(2026, 7, 4)), originalAmount: "800", paidAmount: "800", status: "PAID", description: "_TEST dept B salary 1" },
-      { ...base, departmentId: deptBId, transactionDate: new Date(Date.UTC(2026, 7, 12)), originalAmount: "300", paidAmount: "0", status: "PENDING", description: "_TEST dept B salary 2" },
-      // Untagged outflow — no department at all, must not be attributed to any department row.
-      { ...base, departmentId: null, transactionDate: new Date(Date.UTC(2026, 7, 6)), originalAmount: "200", paidAmount: "200", status: "PAID", description: "_TEST untagged expense" },
+      // Dept A — earns 5000 (all collected), spends 1500. Net +3500.
+      { ...inflow, departmentId: deptAId, transactionDate: new Date(Date.UTC(2026, 7, 2)), originalAmount: "3000", paidAmount: "3000", status: "PAID", description: "_TEST A deal 1" },
+      { ...inflow, departmentId: deptAId, transactionDate: new Date(Date.UTC(2026, 7, 9)), originalAmount: "2000", paidAmount: "2000", status: "PAID", description: "_TEST A deal 2" },
+      { ...outflow, departmentId: deptAId, transactionDate: new Date(Date.UTC(2026, 7, 3)), originalAmount: "1000", paidAmount: "1000", status: "PAID", description: "_TEST A cost 1" },
+      { ...outflow, departmentId: deptAId, transactionDate: new Date(Date.UTC(2026, 7, 10)), originalAmount: "500", paidAmount: "500", status: "PAID", description: "_TEST A cost 2" },
+
+      // Dept B — earns 4000 but only 1000 collected, spends 800. Net +3200 on
+      // accrual, yet only 25% of the money is actually in.
+      { ...inflow, departmentId: deptBId, transactionDate: new Date(Date.UTC(2026, 7, 4)), originalAmount: "4000", paidAmount: "1000", status: "PARTIAL", description: "_TEST B deal 1" },
+      { ...outflow, departmentId: deptBId, transactionDate: new Date(Date.UTC(2026, 7, 12)), originalAmount: "800", paidAmount: "0", status: "PENDING", description: "_TEST B cost 1" },
+
+      // Dept C — spends 900, earns nothing. The case the old outflow-only
+      // panel made every department look like.
+      { ...outflow, departmentId: deptCId, transactionDate: new Date(Date.UTC(2026, 7, 5)), originalAmount: "900", paidAmount: "400", status: "PARTIAL", description: "_TEST C cost 1" },
+
+      // Untagged rows in both directions — must not be attributed to any department.
+      { ...inflow, departmentId: null, transactionDate: new Date(Date.UTC(2026, 7, 6)), originalAmount: "7777", paidAmount: "7777", status: "PAID", description: "_TEST untagged deal" },
+      { ...outflow, departmentId: null, transactionDate: new Date(Date.UTC(2026, 7, 6)), originalAmount: "200", paidAmount: "200", status: "PAID", description: "_TEST untagged expense" },
+
+      // Outside the range — proves the range filter applies to both directions.
+      { ...inflow, departmentId: deptAId, transactionDate: new Date(Date.UTC(2026, 6, 15)), originalAmount: "9999", paidAmount: "9999", status: "PAID", description: "_TEST A prior month deal" },
     ],
   });
 });
@@ -62,34 +80,73 @@ afterAll(async () => {
   if (!entityId) return;
   await prisma.financialTransaction.deleteMany({ where: { entityId } });
   await prisma.businessEntity.delete({ where: { id: entityId } });
-  if (deptAId) await prisma.department.delete({ where: { id: deptAId } });
-  if (deptBId) await prisma.department.delete({ where: { id: deptBId } });
-  if (deptUntaggedId) await prisma.department.delete({ where: { id: deptUntaggedId } });
+  for (const id of [deptAId, deptBId, deptCId, deptUntaggedId]) {
+    if (id) await prisma.department.delete({ where: { id } });
+  }
 });
 
-describe("getDepartmentPaymentStatus", () => {
-  it("reports which departments are fully paid vs delayed, and excludes departments with no activity", async () => {
-    const rows = await getDepartmentPaymentStatus(entityId, RANGE);
-
-    // Dept Unused has zero transactions in range — must not appear at all.
-    expect(rows.find((r) => r.departmentId === deptUntaggedId)).toBeUndefined();
-    expect(rows).toHaveLength(2);
+describe("getDepartmentPerformance", () => {
+  it("reports what each department earned as well as what it spent", async () => {
+    const rows = await getDepartmentPerformance(entityId, RANGE);
 
     const deptA = rows.find((r) => r.departmentId === deptAId)!;
-    expect(deptA.itemCount).toBe(2);
-    expect(deptA.paidItemCount).toBe(2);
-    expect(deptA.totalDue.toString()).toBe("1500");
-    expect(deptA.paid.toString()).toBe("1500");
-    expect(deptA.pending.toString()).toBe("0");
-    expect(deptA.fullyPaid).toBe(true);
+    expect(deptA.earned.toString()).toBe("5000");
+    expect(deptA.received.toString()).toBe("5000");
+    expect(deptA.spent.toString()).toBe("1500");
+    expect(deptA.paidOut.toString()).toBe("1500");
+    expect(deptA.net.toString()).toBe("3500");
+    expect(deptA.inflowCount).toBe(2);
+    expect(deptA.outflowCount).toBe(2);
+    expect(deptA.fullyCollected).toBe(true);
+  });
 
+  // The distinction the single "net" number hides: B looks healthy on accrual
+  // but has only a quarter of the cash in the door.
+  it("separates what was billed from what was actually collected", async () => {
+    const rows = await getDepartmentPerformance(entityId, RANGE);
     const deptB = rows.find((r) => r.departmentId === deptBId)!;
-    expect(deptB.itemCount).toBe(2);
-    expect(deptB.paidItemCount).toBe(1);
-    expect(deptB.pendingItemCount).toBe(1);
-    expect(deptB.totalDue.toString()).toBe("1100");
-    expect(deptB.paid.toString()).toBe("800");
-    expect(deptB.pending.toString()).toBe("300");
-    expect(deptB.fullyPaid).toBe(false);
+
+    expect(deptB.earned.toString()).toBe("4000");
+    expect(deptB.received.toString()).toBe("1000");
+    expect(deptB.outstanding.toString()).toBe("3000");
+    expect(deptB.collectedFraction.toString()).toBe("0.25");
+    expect(deptB.fullyCollected).toBe(false);
+
+    expect(deptB.spent.toString()).toBe("800");
+    expect(deptB.owing.toString()).toBe("800");
+    expect(deptB.net.toString()).toBe("3200");
+  });
+
+  it("shows a cost-only department without dividing by zero", async () => {
+    const rows = await getDepartmentPerformance(entityId, RANGE);
+    const deptC = rows.find((r) => r.departmentId === deptCId)!;
+
+    expect(deptC.earned.toString()).toBe("0");
+    expect(deptC.collectedFraction.toString()).toBe("0");
+    expect(deptC.spent.toString()).toBe("900");
+    expect(deptC.net.toString()).toBe("-900");
+    expect(deptC.inflowCount).toBe(0);
+    // Nothing was billed, so "fully collected" would be a false green tick.
+    expect(deptC.fullyCollected).toBe(false);
+  });
+
+  it("excludes departments with no activity, and untagged rows entirely", async () => {
+    const rows = await getDepartmentPerformance(entityId, RANGE);
+
+    expect(rows.find((r) => r.departmentId === deptUntaggedId)).toBeUndefined();
+    expect(rows).toHaveLength(3);
+
+    // The untagged 7777 inflow / 200 outflow belong to no department, so they
+    // must not appear in any row — department totals deliberately don't
+    // reconcile to entity totals.
+    const totalEarned = rows.reduce((sum, r) => sum.plus(r.earned), rows[0].earned.minus(rows[0].earned));
+    expect(totalEarned.toString()).toBe("9000"); // 5000 + 4000, not 16777
+  });
+
+  it("applies the date range to inflow as well as outflow", async () => {
+    const rows = await getDepartmentPerformance(entityId, RANGE);
+    const deptA = rows.find((r) => r.departmentId === deptAId)!;
+    // The 9999 July deal is outside the August range.
+    expect(deptA.earned.toString()).toBe("5000");
   });
 });

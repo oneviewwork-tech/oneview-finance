@@ -5,6 +5,7 @@ import type { UserRole } from "@prisma/client";
 import { createUser, resetUserPassword, setUserActive, setUserRole } from "@/actions/user.actions";
 import type { ActionResult } from "@/lib/action-result";
 import { ROLE_OPTIONS, ROLE_LABEL } from "@/lib/roles";
+import { PASSWORD_RULE_HINT } from "@/validators/auth";
 import { formatDate } from "@/lib/format";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -81,6 +82,7 @@ function CreateUserForm() {
         <div>
           <Label htmlFor="temporaryPassword">Temporary password</Label>
           <Input id="temporaryPassword" name="temporaryPassword" type="text" required className="mt-1" />
+          <p className="mt-1 text-metadata">{PASSWORD_RULE_HINT}</p>
           {fieldErrors?.temporaryPassword && (
             <p className="mt-1 text-xs text-destructive">{fieldErrors.temporaryPassword[0]}</p>
           )}
@@ -168,24 +170,30 @@ function ResetPasswordForm({ userId, onDone }: { userId: string; onDone: () => v
 
   return (
     <form
-      className="mt-3 flex items-center gap-2"
+      className="mt-3 flex flex-wrap items-start gap-2"
       action={(formData) => {
         setError(null);
         startTransition(async () => {
           const result = await resetUserPassword(userId, formData);
           if (!result.success) {
-            setError(result.error);
+            // Prefer the field-level message: the action's top-level error for
+            // a failed parse is the generic "Invalid input", which tells the
+            // admin nothing about which rule the password missed.
+            setError(result.fieldErrors?.temporaryPassword?.[0] ?? result.error);
             return;
           }
           onDone();
         });
       }}
     >
-      <Input name="temporaryPassword" placeholder="New temporary password" required className="h-8 max-w-xs text-xs" />
+      <div className="max-w-xs flex-1">
+        <Input name="temporaryPassword" placeholder="New temporary password" required className="h-8 text-xs" />
+        <p className="mt-1 text-metadata">{PASSWORD_RULE_HINT}</p>
+        {error && <p className="mt-1 text-xs text-destructive">{error}</p>}
+      </div>
       <Button type="submit" size="sm" variant="outline" disabled={pending}>
         {pending ? "Saving…" : "Set password"}
       </Button>
-      {error && <p className="text-xs text-destructive">{error}</p>}
     </form>
   );
 }

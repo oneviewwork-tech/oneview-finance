@@ -283,8 +283,13 @@ model FinancialTransaction {
   expenseType   ExpenseType?       @relation(fields: [expenseTypeId], references: [id])
   vendorId      String?
   vendor        Vendor?            @relation(fields: [vendorId], references: [id])
-  departmentId  String?
-  department    Department?        @relation(fields: [departmentId], references: [id])
+
+  // Set on BOTH directions: a department spends (outflow) and earns (inflow),
+  // and tagging only its costs would make every department look like a pure
+  // expense. Neither workbook sheet has this column — it's ONEVIEW-only, so
+  // it stays optional and the Excel round-trip is unaffected.
+  departmentId String?
+  department   Department? @relation(fields: [departmentId], references: [id])
 
   // Inflow-only fields
   clientId     String?

@@ -6,10 +6,11 @@ export default async function NewInflowPage({ params }: { params: Promise<{ enti
   const { entityCode } = await params;
   const entity = await requireEntityBySlug(entityCode);
 
-  const [clients, clientTypes, paymentMethods] = await Promise.all([
+  const [clients, clientTypes, paymentMethods, departments] = await Promise.all([
     prisma.client.findMany({ where: { entityId: entity.id, status: "ACTIVE" }, orderBy: { name: "asc" } }),
     prisma.clientType.findMany({ where: { isActive: true }, orderBy: { sortOrder: "asc" } }),
     prisma.paymentMethod.findMany({ where: { isActive: true }, orderBy: { sortOrder: "asc" } }),
+    prisma.department.findMany({ where: { isActive: true }, orderBy: { sortOrder: "asc" } }),
   ]);
 
   return (
@@ -25,6 +26,7 @@ export default async function NewInflowPage({ params }: { params: Promise<{ enti
         clients={clients}
         clientTypes={clientTypes}
         paymentMethods={paymentMethods}
+        departments={departments}
       />
     </div>
   );

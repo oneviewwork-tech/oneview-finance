@@ -64,6 +64,11 @@ export const createInflowSchema = z.object({
   newClientName: z.string().trim().max(200).optional(), // or create-on-the-fly
   newClientTypeId: optionalCuid,
   description: z.string().trim().min(1, "Service / Project is required").max(300),
+  // Which team delivers the work. Distinct from `description`, which is the
+  // specific engagement ("Website redesign for X") — this is the team that
+  // earns from it, and it's what makes a department a profit centre rather
+  // than a cost centre. Optional: not every receipt is attributable.
+  departmentId: optionalCuid,
   dealValue: moneyString,
   amountReceived: optionalMoneyString, // initial receipt, may be partial or omitted (PENDING)
   paymentMethodId: optionalCuid,

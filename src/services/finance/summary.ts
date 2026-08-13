@@ -504,79 +504,100 @@ export async function getDashboardOverview(entityId: string, range?: DateRange):
   };
 }
 
-// ── Department payment status — not in the source workbook. Answers "of N
-// departments with activity this period, how many are fully paid, and which
-// are delayed?" Only departments with at least one tagged Outflow row in the
-// range appear; untagged transactions aren't attributable to any department. ──
+// ── Department performance — not in the source workbook. Answers "which
+// departments are actually worth running?", which needs both directions: a
+// department earns (tagged Inflow) and spends (tagged Outflow), and tagging
+// only its costs would make every department look like a pure expense.
+//
+// Only departments with at least one tagged row in the range appear —
+// untagged transactions aren't attributable to any department, so they're
+// excluded rather than silently bucketed somewhere. That means these
+// columns do NOT sum to the entity totals unless everything is tagged. ──
 
-export interface DepartmentStatusRow {
+export interface DepartmentPerformanceRow {
   departmentId: string;
   departmentName: string;
-  totalDue: Prisma.Decimal;
-  paid: Prisma.Decimal;
-  pending: Prisma.Decimal;
-  percentPaid: Prisma.Decimal;
-  itemCount: number;
-  paidItemCount: number;
-  partialItemCount: number;
-  pendingItemCount: number;
-  fullyPaid: boolean;
+  /** Inflow billed to clients — deal value, whether or not it's been paid. */
+  earned: Prisma.Decimal;
+  /** Inflow actually collected. */
+  received: Prisma.Decimal;
+  /** Still owed by clients for this department's work. */
+  outstanding: Prisma.Decimal;
+  /** Outflow due — costs incurred, whether or not settled. */
+  spent: Prisma.Decimal;
+  /** Outflow settled. */
+  paidOut: Prisma.Decimal;
+  /** Still owed to vendors for this department. */
+  owing: Prisma.Decimal;
+  /**
+   * Accrual contribution: earned − spent. Deliberately NOT the dashboard's
+   * cash-basis "net position" (received − paidOut) — here the Earned and
+   * Spent columns are both on screen, so a net that doesn't visibly subtract
+   * them would read as an error.
+   */
+  net: Prisma.Decimal;
+  /** received / earned. Zero when the department billed nothing. */
+  collectedFraction: Prisma.Decimal;
+  inflowCount: number;
+  outflowCount: number;
+  /** Billed something and collected all of it. */
+  fullyCollected: boolean;
 }
 
-export async function getDepartmentPaymentStatus(entityId: string, range?: DateRange): Promise<DepartmentStatusRow[]> {
+export async function getDepartmentPerformance(entityId: string, range?: DateRange): Promise<DepartmentPerformanceRow[]> {
   const where = {
     entityId,
-    transactionType: "OUTFLOW" as const,
     departmentId: { not: null },
     transactionDate: rangeFilter(range),
   };
 
-  const [totals, statusGroups, departments] = await Promise.all([
+  const [inflow, outflow, departments] = await Promise.all([
     prisma.financialTransaction.groupBy({
       by: ["departmentId"],
-      where,
+      where: { ...where, transactionType: "INFLOW" },
       _sum: { originalAmount: true, paidAmount: true },
       _count: true,
     }),
     prisma.financialTransaction.groupBy({
-      by: ["departmentId", "status"],
-      where,
+      by: ["departmentId"],
+      where: { ...where, transactionType: "OUTFLOW" },
+      _sum: { originalAmount: true, paidAmount: true },
       _count: true,
     }),
     prisma.department.findMany({ orderBy: { sortOrder: "asc" } }),
   ]);
 
-  const totalsByDept = new Map(totals.map((t) => [t.departmentId!, t]));
-  const statusByDept = new Map<string, Record<TransactionStatus, number>>();
-  for (const g of statusGroups) {
-    const key = g.departmentId!;
-    const entry = statusByDept.get(key) ?? { PAID: 0, PARTIAL: 0, PENDING: 0 };
-    entry[g.status] = g._count;
-    statusByDept.set(key, entry);
-  }
+  const inflowByDept = new Map(inflow.map((r) => [r.departmentId!, r]));
+  const outflowByDept = new Map(outflow.map((r) => [r.departmentId!, r]));
 
   return departments
     .map((dept) => {
-      const t = totalsByDept.get(dept.id);
-      const totalDue = t?._sum.originalAmount ?? new Decimal(0);
-      const paid = t?._sum.paidAmount ?? new Decimal(0);
-      const itemCount = t?._count ?? 0;
-      const statusCounts = statusByDept.get(dept.id) ?? { PAID: 0, PARTIAL: 0, PENDING: 0 };
+      const i = inflowByDept.get(dept.id);
+      const o = outflowByDept.get(dept.id);
+
+      const earned = i?._sum.originalAmount ?? new Decimal(0);
+      const received = i?._sum.paidAmount ?? new Decimal(0);
+      const spent = o?._sum.originalAmount ?? new Decimal(0);
+      const paidOut = o?._sum.paidAmount ?? new Decimal(0);
+      const inflowCount = i?._count ?? 0;
+
       return {
         departmentId: dept.id,
         departmentName: dept.name,
-        totalDue,
-        paid,
-        pending: totalDue.minus(paid),
-        percentPaid: calculateCollectedFraction(totalDue, paid),
-        itemCount,
-        paidItemCount: statusCounts.PAID,
-        partialItemCount: statusCounts.PARTIAL,
-        pendingItemCount: statusCounts.PENDING,
-        fullyPaid: itemCount > 0 && statusCounts.PAID === itemCount,
+        earned,
+        received,
+        outstanding: earned.minus(received),
+        spent,
+        paidOut,
+        owing: spent.minus(paidOut),
+        net: earned.minus(spent),
+        collectedFraction: calculateCollectedFraction(earned, received),
+        inflowCount,
+        outflowCount: o?._count ?? 0,
+        fullyCollected: inflowCount > 0 && earned.gt(0) && received.gte(earned),
       };
     })
-    .filter((row) => row.itemCount > 0);
+    .filter((row) => row.inflowCount > 0 || row.outflowCount > 0);
 }
 
 // Re-exported so callers can double-check a single row's status without a

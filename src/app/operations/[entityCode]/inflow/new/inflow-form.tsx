@@ -2,7 +2,7 @@
 
 import { useActionState, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import type { Client, ClientType, Currency, PaymentMethod } from "@prisma/client";
+import type { Client, ClientType, Currency, Department, PaymentMethod } from "@prisma/client";
 import { createInflow } from "@/actions/transaction.actions";
 import type { ActionResult } from "@/lib/action-result";
 import { Button } from "@/components/ui/button";
@@ -23,6 +23,7 @@ export function InflowForm({
   clients,
   clientTypes,
   paymentMethods,
+  departments,
 }: {
   entityCode: string;
   entityId: string;
@@ -30,6 +31,7 @@ export function InflowForm({
   clients: Client[];
   clientTypes: ClientType[];
   paymentMethods: PaymentMethod[];
+  departments: Department[];
 }) {
   const router = useRouter();
   const [useNewClient, setUseNewClient] = useState(clients.length === 0);
@@ -107,10 +109,28 @@ export function InflowForm({
         )}
       </div>
 
-      <div>
-        <Label htmlFor="description">Service / Project</Label>
-        <Input id="description" name="description" placeholder="e.g. SMM Retainer, 6 months" required className="mt-1" />
-        <FieldError messages={fieldErrors?.description} />
+      <div className={departments.length > 0 ? "grid grid-cols-2 gap-4" : undefined}>
+        <div>
+          <Label htmlFor="description">Service / Project</Label>
+          <Input id="description" name="description" placeholder="e.g. SMM Retainer, 6 months" required className="mt-1" />
+          <FieldError messages={fieldErrors?.description} />
+        </div>
+        {/* The team delivering the work — this is what lets a department show
+            revenue earned, not just costs incurred. */}
+        {departments.length > 0 && (
+          <div>
+            <Label htmlFor="departmentId">Department (optional)</Label>
+            <Select id="departmentId" name="departmentId" defaultValue="" className="mt-1">
+              <option value="">-</option>
+              {departments.map((d) => (
+                <option key={d.id} value={d.id}>
+                  {d.name}
+                </option>
+              ))}
+            </Select>
+            <FieldError messages={fieldErrors?.departmentId} />
+          </div>
+        )}
       </div>
 
       <div className="grid grid-cols-2 gap-4">
