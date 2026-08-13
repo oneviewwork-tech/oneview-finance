@@ -72,7 +72,7 @@ export function PopoverMenu({
       {open && (
         <div
           className={cn(
-            "absolute z-40 mt-1.5 min-w-52 overflow-hidden rounded-lg border border-border bg-popover text-popover-foreground shadow-lg",
+            "popover-panel absolute z-40 mt-1.5 min-w-52 overflow-hidden",
             "animate-in fade-in-0 zoom-in-95 duration-150",
             align === "end" ? "right-0" : "left-0",
             panelClassName

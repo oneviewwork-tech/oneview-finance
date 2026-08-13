@@ -50,6 +50,13 @@
 }
 
 :root {
+  /* Tells the browser which way to paint the controls it draws itself — the
+     native <select> popup list, <input type="date"> calendars, spinners and
+     default scrollbars. Without it those stay light in dark mode, so a dark
+     page opens a glaringly white dropdown. CSS can't reach inside those
+     popups; this property is the only lever. */
+  color-scheme: light;
+
   --radius: 0.625rem;
 
   /* Neutral surface — cool, slightly desaturated, not stark white/gray */
@@ -98,6 +105,8 @@
 }
 
 .dark {
+  color-scheme: dark;
+
   --background: oklch(0.155 0.012 260);
   --foreground: oklch(0.96 0.004 255);
   --card: oklch(0.195 0.013 260);
@@ -214,6 +223,34 @@ body {
 @utility transition-ui {
   transition-duration: 160ms;
   transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ── Floating panels ────────────────────────────────────────────────
+   One surface for every menu / dropdown / popover, so they can't drift
+   apart. Uses surface-elevated rather than popover: in dark mode those
+   tokens differ by design — elevated sits a step lighter than card, so a
+   panel opening on top of a card still reads as raised. On a dark surface a
+   drop shadow carries almost no elevation on its own; the lighter fill is
+   what does the work. Light mode is unchanged (both are white) and relies
+   on the shadow, which reads fine there. */
+@utility popover-panel {
+  background: var(--color-surface-elevated);
+  color: var(--color-popover-foreground);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+}
+
+/* ── Native control popups ──────────────────────────────────────────
+   The <select> option list is drawn by the OS, so `color-scheme` above does
+   most of the work. These explicit colours keep the list matched to the
+   app's own surfaces on the platforms that honour them (Chrome/Edge on
+   Windows and Linux); where they're ignored, color-scheme still applies. */
+@layer base {
+  select option {
+    background-color: var(--color-surface-elevated);
+    color: var(--color-popover-foreground);
+  }
 }
 
 /* ── Scrollbar ──────────────────────────────────────────────────── */

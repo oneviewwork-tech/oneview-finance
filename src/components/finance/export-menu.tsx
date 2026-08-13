@@ -96,7 +96,7 @@ export function ExportMenu({
       {open && (
         <div
           role="menu"
-          className="absolute right-0 z-40 mt-1.5 w-64 overflow-hidden rounded-lg border border-border bg-popover p-1.5 shadow-lg animate-in fade-in-0 zoom-in-95 duration-150"
+          className="popover-panel absolute right-0 z-40 mt-1.5 w-64 overflow-hidden p-1.5 animate-in fade-in-0 zoom-in-95 duration-150"
         >
           {options.map((opt) => (
             <a

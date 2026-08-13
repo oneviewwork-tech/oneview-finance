@@ -192,7 +192,7 @@ export function SidebarNav({
           {userMenuOpen && (
             <div
               role="menu"
-              className="absolute bottom-full left-0 right-0 mb-2 rounded-lg border border-border bg-popover p-1.5 shadow-lg animate-in fade-in-0 zoom-in-95 duration-150"
+              className="popover-panel absolute bottom-full left-0 right-0 z-40 mb-2 p-1.5 animate-in fade-in-0 zoom-in-95 duration-150"
             >
               <div className="border-b border-border px-2 pb-2 pt-1">
                 <p className="truncate text-xs text-muted-foreground">{user.email}</p>
