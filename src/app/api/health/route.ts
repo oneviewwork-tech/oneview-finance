@@ -1,14 +1,14 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
-// Deliberately unauthenticated and cheap — a scheduler pings this to keep
-// Neon's compute from auto-suspending, and it doubles as a liveness probe.
+// Deliberately unauthenticated and cheap — UptimeRobot hits this every five
+// minutes to keep Neon's compute from auto-suspending (~5-minute idle
+// timeout, so the margin is thin by design rather than comfortable).
 // Returns no data beyond "the DB answered" — nothing here is sensitive.
 //
-// Note the current pinger (.github/workflows/keep-warm.yml) is throttled by
-// GitHub well below the interval needed to actually prevent the ~5-minute
-// suspend; see that file. This endpoint is correct either way — point a
-// scheduler that honours its interval at it and the keep-warm works.
+// The 503 below is load-bearing: the monitor treats any non-2xx as down, so
+// this doubles as the outage alert for the database. Keep it a real status
+// code — swallowing the error into a 200 would silence that.
 export async function GET() {
   try {
     await prisma.$queryRaw`SELECT 1`;
