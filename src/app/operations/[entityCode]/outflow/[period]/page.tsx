@@ -2,25 +2,20 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireEntityBySlug } from "@/lib/entities";
 import { requireUser, canWriteEntity } from "@/lib/rbac";
-import { formatDate, formatMoney } from "@/lib/format";
-import { parsePeriodKey, periodRange, weekLabel } from "@/domain/finance/period";
-import { getMonthTotals } from "@/services/finance/ledger-months";
-import { MonthSheet, type SheetColumn } from "@/components/finance/month-sheet";
+import { parsePeriodKey, periodRange, weekOfMonth } from "@/domain/finance/period";
+import { LedgerGrid, WEEK_CHOICES, PAY_FULL_CHOICES, type GridColumn } from "@/components/finance/ledger-grid";
 
-// Mirrors the Payment Tracker's column order so someone moving off the
-// workbook finds the same fields in the same places.
-const COLUMNS: SheetColumn[] = [
-  { key: "week", label: "Week" },
-  { key: "item", label: "Expense Item" },
-  { key: "category", label: "Category" },
-  { key: "type", label: "Type" },
-  { key: "due", label: "Amount Due", align: "right", entry: true },
-  { key: "paid", label: "Amount Paid", align: "right", entry: true },
-  { key: "balance", label: "Balance", align: "right" },
-  { key: "datePaid", label: "Date Paid" },
-  { key: "reference", label: "Reference No." },
-];
+function iso(d: Date): string {
+  return d.toISOString().slice(0, 10);
+}
 
+/**
+ * The Payment Tracker for one month, editable in place.
+ *
+ * Columns follow src/domain/import/workbook-layout.ts — the same source the
+ * importer and exporter use — so the on-screen sheet, the file you import
+ * and the file you export all agree on what each column is.
+ */
 export default async function OutflowMonthPage({
   params,
 }: {
@@ -33,53 +28,78 @@ export default async function OutflowMonthPage({
   const entity = await requireEntityBySlug(entityCode);
   const user = await requireUser();
   const canWrite = canWriteEntity(user.role, entity.code);
+  const cur = entity.baseCurrency;
 
   const range = periodRange(period);
-  const [transactions, totals] = await Promise.all([
+  const [transactions, categories, expenseTypes, departments, paymentMethods] = await Promise.all([
     prisma.financialTransaction.findMany({
       where: {
         entityId: entity.id,
         transactionType: "OUTFLOW",
         transactionDate: { gte: range.from, lte: range.to },
       },
-      include: { category: true, expenseType: true, payments: { orderBy: { paymentDate: "desc" }, take: 1 } },
+      include: { payments: { orderBy: { paymentDate: "desc" }, take: 1 } },
       orderBy: [{ transactionDate: "asc" }, { createdAt: "asc" }],
     }),
-    getMonthTotals(entity.id, "OUTFLOW", period),
+    prisma.financialCategory.findMany({ where: { isActive: true }, orderBy: { sortOrder: "asc" } }),
+    prisma.expenseType.findMany({ where: { isActive: true }, orderBy: { sortOrder: "asc" } }),
+    prisma.department.findMany({ where: { isActive: true }, orderBy: { sortOrder: "asc" } }),
+    prisma.paymentMethod.findMany({ where: { isActive: true }, orderBy: { sortOrder: "asc" } }),
   ]);
+
+  const opt = (xs: { id: string; name: string }[]) => xs.map((x) => ({ id: x.id, name: x.name }));
+
+  const columns: GridColumn[] = [
+    { field: "week", label: "Week", type: "select", width: "w-28", options: WEEK_CHOICES },
+    { field: "description", label: "Expense Item", type: "text", width: "min-w-[220px]" },
+    { field: "categoryId", label: "Category", type: "select", width: "w-44", options: opt(categories) },
+    { field: "expenseTypeId", label: "Type", type: "select", width: "w-36", options: opt(expenseTypes) },
+    { field: "departmentId", label: "Department", type: "select", width: "w-40", options: opt(departments) },
+    { field: "amount", label: `Amount Due (${cur})`, type: "money", width: "w-32" },
+    { field: "paidAmount", label: `Amount Paid (${cur})`, type: "money", width: "w-32" },
+    { field: "payFull", label: "Pay Full?", type: "select", width: "w-24", options: PAY_FULL_CHOICES },
+    { field: "balance", label: `Balance (${cur})`, type: "derived", width: "w-32" },
+    { field: "status", label: "Status", type: "derived", width: "w-24" },
+    { field: "paymentDate", label: "Date Paid", type: "date", width: "w-36" },
+    { field: "paymentMethodId", label: "Mode", type: "select", width: "w-36", options: opt(paymentMethods) },
+    { field: "referenceNumber", label: "Reference No.", type: "text", width: "w-36" },
+    { field: "remarks", label: "Remarks", type: "text", width: "min-w-[160px]" },
+  ];
 
   const rows = transactions.map((t) => ({
     id: t.id,
-    status: t.status,
-    cells: {
-      week: weekLabel(t.transactionDate),
-      item: t.description,
-      category: t.category?.name ?? "-",
-      type: t.expenseType?.name ?? "-",
-      due: formatMoney(t.originalAmount, t.originalCurrency),
-      paid: formatMoney(t.paidAmount, t.originalCurrency),
-      balance: formatMoney(t.originalAmount.minus(t.paidAmount), t.originalCurrency),
-      datePaid: t.payments[0] ? formatDate(t.payments[0].paymentDate) : "-",
-      reference: t.referenceNumber ?? "-",
-    },
+    transactionDate: iso(t.transactionDate),
+    description: t.description,
+    categoryId: t.categoryId,
+    expenseTypeId: t.expenseTypeId,
+    departmentId: t.departmentId,
+    clientId: null,
+    clientName: "",
+    closedByName: "",
+    referenceNumber: t.referenceNumber ?? "",
+    remarks: t.remarks ?? "",
+    amount: t.originalAmount.toString(),
+    paidAmount: t.paidAmount.toString(),
+    week: String(weekOfMonth(t.transactionDate)),
+    // Reflects reality rather than a stored flag: a fully settled row reads
+    // as Y, exactly as the workbook's own column does.
+    payFull: t.paidAmount.gte(t.originalAmount) && t.originalAmount.gt(0) ? "Y" : "N",
+    paymentMethodId: t.payments[0]?.paymentMethodId ?? null,
+    paymentDate: t.payments[0] ? iso(t.payments[0].paymentDate) : "",
+    clientTypeId: null,
   }));
 
   return (
-    <MonthSheet
+    <LedgerGrid
       period={period}
+      entityCode={entityCode}
       entityName={entity.name}
-      currency={entity.baseCurrency}
-      columns={COLUMNS}
-      rows={rows}
-      totals={{
-        total: totals.total.toNumber(),
-        settled: totals.settled.toNumber(),
-        outstanding: totals.outstanding.toNumber(),
-        settledFraction: totals.settledFraction.toNumber(),
-      }}
-      backHref={`/operations/${entityCode}/outflow`}
-      addHref={`/operations/${entityCode}/outflow/new`}
+      transactionType="OUTFLOW"
+      currency={cur}
+      columns={columns}
+      initialRows={rows}
       canWrite={canWrite}
+      backHref={`/operations/${entityCode}/outflow`}
       labels={{ title: "Payment Tracker", total: "Total Due", settled: "Paid", outstanding: "Pending" }}
     />
   );

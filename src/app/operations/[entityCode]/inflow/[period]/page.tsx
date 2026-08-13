@@ -2,25 +2,19 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireEntityBySlug } from "@/lib/entities";
 import { requireUser, canWriteEntity } from "@/lib/rbac";
-import { formatDate, formatMoney } from "@/lib/format";
 import { parsePeriodKey, periodRange } from "@/domain/finance/period";
-import { calculateCollectedFraction } from "@/domain/finance/calculations";
-import { getMonthTotals } from "@/services/finance/ledger-months";
-import { MonthSheet, type SheetColumn } from "@/components/finance/month-sheet";
+import { LedgerGrid, type GridColumn } from "@/components/finance/ledger-grid";
 
-// Mirrors the Inflow Tracker's column order.
-const COLUMNS: SheetColumn[] = [
-  { key: "date", label: "Date Received" },
-  { key: "client", label: "Client Name" },
-  { key: "service", label: "Service / Project" },
-  { key: "department", label: "Department" },
-  { key: "deal", label: "Deal Value", align: "right", entry: true },
-  { key: "received", label: "Received", align: "right", entry: true },
-  { key: "balance", label: "Balance Due", align: "right" },
-  { key: "collected", label: "% Collected", align: "right" },
-  { key: "closedBy", label: "Closed By" },
-];
+function iso(d: Date): string {
+  return d.toISOString().slice(0, 10);
+}
 
+/**
+ * The Inflow Tracker for one month, editable in place.
+ *
+ * Columns follow src/domain/import/workbook-layout.ts, the same source the
+ * importer and exporter use.
+ */
 export default async function InflowMonthPage({
   params,
 }: {
@@ -33,53 +27,76 @@ export default async function InflowMonthPage({
   const entity = await requireEntityBySlug(entityCode);
   const user = await requireUser();
   const canWrite = canWriteEntity(user.role, entity.code);
+  const cur = entity.baseCurrency;
 
   const range = periodRange(period);
-  const [transactions, totals] = await Promise.all([
+  const [transactions, clients, clientTypes, departments, paymentMethods] = await Promise.all([
     prisma.financialTransaction.findMany({
       where: {
         entityId: entity.id,
         transactionType: "INFLOW",
         transactionDate: { gte: range.from, lte: range.to },
       },
-      include: { client: true, department: true },
+      include: { client: true, payments: { orderBy: { paymentDate: "desc" }, take: 1 } },
       orderBy: [{ transactionDate: "asc" }, { createdAt: "asc" }],
     }),
-    getMonthTotals(entity.id, "INFLOW", period),
+    prisma.client.findMany({ where: { entityId: entity.id, status: "ACTIVE" }, orderBy: { name: "asc" } }),
+    prisma.clientType.findMany({ where: { isActive: true }, orderBy: { sortOrder: "asc" } }),
+    prisma.department.findMany({ where: { isActive: true }, orderBy: { sortOrder: "asc" } }),
+    prisma.paymentMethod.findMany({ where: { isActive: true }, orderBy: { sortOrder: "asc" } }),
   ]);
+
+  const opt = (xs: { id: string; name: string }[]) => xs.map((x) => ({ id: x.id, name: x.name }));
+
+  const columns: GridColumn[] = [
+    { field: "transactionDate", label: "Date Received", type: "date", width: "w-36" },
+    { field: "clientId", label: "Client Name", type: "select", width: "w-48", options: opt(clients) },
+    { field: "description", label: "Service / Project", type: "text", width: "min-w-[200px]" },
+    { field: "clientTypeId", label: "Client Type", type: "select", width: "w-36", options: opt(clientTypes) },
+    { field: "departmentId", label: "Department", type: "select", width: "w-40", options: opt(departments) },
+    { field: "amount", label: `Deal Value (${cur})`, type: "money", width: "w-32" },
+    { field: "paidAmount", label: `Amount Received (${cur})`, type: "money", width: "w-36" },
+    { field: "balance", label: `Balance Due (${cur})`, type: "derived", width: "w-32" },
+    { field: "percent", label: "% Collected", type: "derived", width: "w-28" },
+    { field: "status", label: "Status", type: "derived", width: "w-24" },
+    { field: "paymentMethodId", label: "Payment Mode", type: "select", width: "w-36", options: opt(paymentMethods) },
+    { field: "referenceNumber", label: "Reference No.", type: "text", width: "w-36" },
+    { field: "closedByName", label: "Closed By (BD)", type: "text", width: "w-36" },
+    { field: "remarks", label: "Remarks", type: "text", width: "min-w-[160px]" },
+  ];
 
   const rows = transactions.map((t) => ({
     id: t.id,
-    status: t.status,
-    cells: {
-      date: formatDate(t.transactionDate),
-      client: t.client?.name ?? "-",
-      service: t.description,
-      department: t.department?.name ?? "-",
-      deal: formatMoney(t.originalAmount, t.originalCurrency),
-      received: formatMoney(t.paidAmount, t.originalCurrency),
-      balance: formatMoney(t.originalAmount.minus(t.paidAmount), t.originalCurrency),
-      collected: `${(calculateCollectedFraction(t.originalAmount, t.paidAmount).toNumber() * 100).toFixed(1)}%`,
-      closedBy: t.closedByName ?? "-",
-    },
+    transactionDate: iso(t.transactionDate),
+    description: t.description,
+    categoryId: null,
+    expenseTypeId: null,
+    departmentId: t.departmentId,
+    clientId: t.clientId,
+    clientName: t.client?.name ?? "",
+    closedByName: t.closedByName ?? "",
+    referenceNumber: t.referenceNumber ?? "",
+    remarks: t.remarks ?? "",
+    amount: t.originalAmount.toString(),
+    paidAmount: t.paidAmount.toString(),
+    week: "1",
+    payFull: "N",
+    paymentMethodId: t.payments[0]?.paymentMethodId ?? null,
+    paymentDate: t.payments[0] ? iso(t.payments[0].paymentDate) : "",
+    clientTypeId: t.client?.clientTypeId ?? null,
   }));
 
   return (
-    <MonthSheet
+    <LedgerGrid
       period={period}
+      entityCode={entityCode}
       entityName={entity.name}
-      currency={entity.baseCurrency}
-      columns={COLUMNS}
-      rows={rows}
-      totals={{
-        total: totals.total.toNumber(),
-        settled: totals.settled.toNumber(),
-        outstanding: totals.outstanding.toNumber(),
-        settledFraction: totals.settledFraction.toNumber(),
-      }}
-      backHref={`/operations/${entityCode}/inflow`}
-      addHref={`/operations/${entityCode}/inflow/new`}
+      transactionType="INFLOW"
+      currency={cur}
+      columns={columns}
+      initialRows={rows}
       canWrite={canWrite}
+      backHref={`/operations/${entityCode}/inflow`}
       labels={{ title: "Inflow Tracker", total: "Total Deal Value", settled: "Received", outstanding: "Balance Due" }}
     />
   );
