@@ -4,6 +4,7 @@ import { requireEntityBySlug } from "@/lib/entities";
 import { formatMoneyCompact } from "@/lib/format";
 import { getInflowSummary, getOutflowSummary } from "@/services/finance/summary";
 import { OperationCard } from "@/components/finance/operation-card";
+import { ExportMenu } from "@/components/finance/export-menu";
 
 export default async function EntityOperationsHome({
   params,
@@ -25,7 +26,15 @@ export default async function EntityOperationsHome({
   ]);
 
   return (
-    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+    <div>
+      {/* Download point for the accounts team — the Excel option is the same
+          Payment Tracker / Inflow Tracker workbook they already work in. */}
+      <div className="mb-4 flex items-center justify-between gap-3">
+        <p className="text-metadata">Download this entity&rsquo;s trackers, or a formatted report.</p>
+        <ExportMenu entityId={entity.id} />
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
       <OperationCard
         label="Inflow"
         value={formatMoneyCompact(inflow.totalReceived, entity.baseCurrency)}
@@ -67,6 +76,7 @@ export default async function EntityOperationsHome({
         actionLabel="View vendors"
         actionHref={`${base}/vendors`}
       />
+      </div>
     </div>
   );
 }

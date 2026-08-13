@@ -15,8 +15,12 @@ export function ExportMenu({
   type,
 }: {
   entityId: string;
-  /** Which table the CSV option exports; Excel and PDF cover the whole entity. */
-  type: "INFLOW" | "OUTFLOW";
+  /**
+   * Which table the CSV option exports. Omit on a page that isn't about one
+   * of them (the entity overview) and both CSVs are offered instead — Excel
+   * and PDF always cover the whole entity either way.
+   */
+  type?: "INFLOW" | "OUTFLOW";
 }) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -43,13 +47,22 @@ export function ExportMenu({
 
   // No range params — the endpoint reads that as "export the full history".
   const base = `/api/export/transactions?entityId=${encodeURIComponent(entityId)}`;
+  const csvOptions = type
+    ? [
+        {
+          href: `${base}&format=csv&type=${type}`,
+          icon: Table2,
+          label: "CSV",
+          hint: `${type === "INFLOW" ? "Inflow" : "Outflow"} rows only`,
+        },
+      ]
+    : [
+        { href: `${base}&format=csv&type=INFLOW`, icon: Table2, label: "Inflow CSV", hint: "Inflow Tracker rows" },
+        { href: `${base}&format=csv&type=OUTFLOW`, icon: Table2, label: "Outflow CSV", hint: "Payment Tracker rows" },
+      ];
+
   const options = [
-    {
-      href: `${base}&format=csv&type=${type}`,
-      icon: Table2,
-      label: "CSV",
-      hint: `${type === "INFLOW" ? "Inflow" : "Outflow"} rows only`,
-    },
+    ...csvOptions,
     {
       href: `${base}&format=xlsx`,
       icon: FileSpreadsheet,
