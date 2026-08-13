@@ -3,6 +3,8 @@
 import { useActionState, useEffect, useRef, useState, useTransition } from "react";
 import type { UserRole } from "@prisma/client";
 import { createUser, resetUserPassword, setUserActive, setUserRole } from "@/actions/user.actions";
+import { clearUserPasskey } from "@/actions/passkey.actions";
+import { roleUsesPasskey } from "@/domain/auth/passkey-policy";
 import type { ActionResult } from "@/lib/action-result";
 import { ROLE_OPTIONS, ROLE_LABEL } from "@/lib/roles";
 import { PASSWORD_RULE_HINT } from "@/validators/auth";
@@ -21,6 +23,7 @@ interface UserRow {
   isActive: boolean;
   mustChangePassword: boolean;
   lastActiveAt: Date | null;
+  hasPasskey: boolean;
 }
 
 export function UserManagementSection({ users, currentUserId }: { users: UserRow[]; currentUserId: string }) {
@@ -101,6 +104,11 @@ function CreateUserForm() {
 function UserRowItem({ user, isSelf }: { user: UserRow; isSelf: boolean }) {
   const [pending, startTransition] = useTransition();
   const [showReset, setShowReset] = useState(false);
+  const [passkeyError, setPasskeyError] = useState<string | null>(null);
+
+  // Only roles that ever meet the gate are worth showing passkey state for —
+  // an entity finance user is never asked for one.
+  const gated = roleUsesPasskey(user.role);
 
   return (
     <li className="p-4">
@@ -134,10 +142,36 @@ function UserRowItem({ user, isSelf }: { user: UserRow; isSelf: boolean }) {
 
           <Badge variant={user.isActive ? "success" : "neutral"}>{user.isActive ? "Active" : "Inactive"}</Badge>
           {user.mustChangePassword && <Badge variant="warning">Password reset pending</Badge>}
+          {gated && (
+            <Badge variant={user.hasPasskey ? "success" : "neutral"} dot>
+              {user.hasPasskey ? "Passkey set" : "No passkey"}
+            </Badge>
+          )}
 
           <Button type="button" variant="ghost" size="sm" onClick={() => setShowReset((v) => !v)}>
             Reset password
           </Button>
+
+          {/* Recovery for a forgotten passkey when the emailed code can't
+              reach the person. Never for yourself — a second factor you can
+              remove with the first one isn't a second factor. */}
+          {gated && user.hasPasskey && !isSelf && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              disabled={pending}
+              onClick={() => {
+                setPasskeyError(null);
+                startTransition(async () => {
+                  const result = await clearUserPasskey(user.id);
+                  if (!result.success) setPasskeyError(result.error);
+                });
+              }}
+            >
+              Clear passkey
+            </Button>
+          )}
 
           <Button
             type="button"
@@ -158,6 +192,8 @@ function UserRowItem({ user, isSelf }: { user: UserRow; isSelf: boolean }) {
       {user.lastActiveAt && (
         <p className="mt-1 text-[0.6875rem] text-muted-foreground">Last active {formatDate(user.lastActiveAt)}</p>
       )}
+
+      {passkeyError && <p className="mt-2 text-xs text-destructive">{passkeyError}</p>}
 
       {showReset && <ResetPasswordForm userId={user.id} onDone={() => setShowReset(false)} />}
     </li>

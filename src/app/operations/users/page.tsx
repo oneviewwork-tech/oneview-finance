@@ -14,8 +14,12 @@ export default async function UsersPage() {
       isActive: true,
       mustChangePassword: true,
       lastActiveAt: true,
+      // Presence only — the hash itself must never reach the client.
+      passkeyHash: true,
     },
   });
+
+  const rows = users.map(({ passkeyHash, ...u }) => ({ ...u, hasPasskey: !!passkeyHash }));
 
   return (
     <div className="max-w-4xl">
@@ -25,7 +29,7 @@ export default async function UsersPage() {
         users never see each other&rsquo;s data, and only Super Admins can manage users.
       </p>
       <div className="mt-6">
-        <UserManagementSection users={users} currentUserId={actor.id} />
+        <UserManagementSection users={rows} currentUserId={actor.id} />
       </div>
     </div>
   );

@@ -417,6 +417,7 @@ enum AuditAction {
   PASSKEY_LOCKED
   PASSKEY_RESET_REQUESTED
   PASSKEY_RESET_COMPLETED
+  PASSKEY_CLEARED
 }
 
 // Append-only. actorUserId/actorEmail are deliberately plain fields, not a

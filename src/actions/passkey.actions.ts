@@ -1,9 +1,11 @@
 "use server";
 
 import { cookies } from "next/headers";
+import { revalidatePath } from "next/cache";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
+import { requireUserManagementAccess } from "@/lib/rbac";
 import { writeAuditEvent } from "@/lib/audit";
 import { actionError, actionSuccess, type ActionResult } from "@/lib/action-result";
 import { PASSKEY_COOKIE, signStepUpToken } from "@/lib/passkey-token";
@@ -66,6 +68,53 @@ async function grantStepUp(userId: string, sessionId: string | undefined): Promi
 export async function clearStepUp(): Promise<void> {
   const jar = await cookies();
   jar.delete(PASSKEY_COOKIE);
+}
+
+/**
+ * Admin recovery: wipe another user's passkey so they can set a new one.
+ *
+ * The emailed reset is the normal path, but it only works when mail can
+ * actually reach the person — on Resend's shared onboarding domain, only
+ * the Resend account owner's address receives anything, which would leave
+ * every other user with no way back. This is that way back.
+ *
+ * Not available for your own account: the point of a second factor is that
+ * possessing the first one can't remove it. Clearing your own would make it
+ * exactly that. Use the emailed reset, or another admin.
+ */
+export async function clearUserPasskey(id: string): Promise<ActionResult> {
+  const actor = await requireUserManagementAccess();
+
+  if (id === actor.id) {
+    return actionError("You can't clear your own passkey. Use “Forgot passkey”, or ask another administrator.");
+  }
+
+  const target = await prisma.user.findUnique({ where: { id }, select: { id: true, email: true, passkeyHash: true } });
+  if (!target) return actionError("User not found");
+  if (!target.passkeyHash) return actionError("That user doesn't have a passkey set");
+
+  await prisma.$transaction(async (tx) => {
+    await tx.user.update({
+      where: { id },
+      data: { passkeyHash: null, passkeySetAt: null, passkeyFailedAttempts: 0, passkeyLockedUntil: null },
+    });
+    // Outstanding codes reset the passkey that no longer exists.
+    await tx.passkeyResetToken.updateMany({
+      where: { userId: id, consumedAt: null },
+      data: { consumedAt: new Date() },
+    });
+    await writeAuditEvent(tx, {
+      entityType: "User",
+      entityId: id,
+      action: "PASSKEY_CLEARED",
+      actorUserId: actor.id,
+      actorEmail: actor.email,
+      metadata: { targetEmail: target.email },
+    });
+  });
+
+  revalidatePath("/operations/users");
+  return actionSuccess(undefined);
 }
 
 // ── Set (first time, or after a reset) ───────────────────────────────────
@@ -218,7 +267,11 @@ export async function requestPasskeyReset(): Promise<ActionResult> {
   try {
     await sendEmail({
       to: user.email,
-      subject: `ONEVIEW Finance passkey reset code: ${code}`,
+      // The code is deliberately NOT in the subject. A subject line renders
+      // on a locked phone and in inbox previews, so putting it there would
+      // hand the second factor to anyone who can see the screen — which is
+      // most of what this factor exists to prevent.
+      subject: "ONEVIEW Finance — passkey reset requested",
       text: [
         `Your passkey reset code is ${code}.`,
         ``,
