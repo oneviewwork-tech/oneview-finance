@@ -5,7 +5,7 @@ import { formatMoneyCompact } from "@/lib/format";
 import { getInflowSummary, getOutflowSummary } from "@/services/finance/summary";
 import { OperationCard } from "@/components/finance/operation-card";
 import { ExportMenu } from "@/components/finance/export-menu";
-import { EntityMonthTable, type EntityMonthRow } from "@/components/finance/entity-month-table";
+import { EntityMonthCards, type EntityMonthRow } from "@/components/finance/entity-month-cards";
 import { listMonths } from "@/services/finance/ledger-months";
 
 export default async function EntityOperationsHome({
@@ -120,13 +120,19 @@ export default async function EntityOperationsHome({
       />
       </div>
 
-      <div className="mt-6">
-        <EntityMonthTable
-          months={months}
-          currency={entity.baseCurrency}
-          entityId={entity.id}
-          entityCode={entityCode}
-        />
+      <div className="mt-8">
+        <h3 className="text-section-title">Month by month</h3>
+        <p className="mt-0.5 text-page-subtitle">
+          Open a month for its dashboard, or download it as the workbook you already work in.
+        </p>
+        <div className="mt-3">
+          <EntityMonthCards
+            months={months}
+            currency={entity.baseCurrency}
+            entityId={entity.id}
+            entityCode={entityCode}
+          />
+        </div>
       </div>
     </div>
   );

@@ -34,7 +34,7 @@ export default async function ClientsPage({ params }: { params: Promise<{ entity
       </div>
       <div>
         <h3 className="text-card-title">Add client</h3>
-        <ClientForm entityId={entity.id} clientTypes={clientTypes} />
+        <ClientForm entityId={entity.id} clientTypes={clientTypes} currency={entity.baseCurrency} />
       </div>
     </div>
   );

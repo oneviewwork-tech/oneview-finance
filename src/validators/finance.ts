@@ -47,6 +47,15 @@ export const clientSchema = z.object({
   contactName: z.string().trim().max(200).optional(),
   contactEmail: z.string().trim().email().optional().or(z.literal("")),
   contactPhone: z.string().trim().max(50).optional(),
+
+  // The client's opening deal, captured in the same step. All optional: a
+  // client can be added before any work is agreed. If a value is given the
+  // action also books the inflow row, so nobody has to add the client, leave,
+  // and come back to record the deal they just signed.
+  dealDate: z.preprocess(blankToUndefined, z.string().trim().optional()),
+  dealValue: optionalMoneyString,
+  taxAmount: optionalMoneyString,
+  serviceProject: z.string().trim().max(300).optional(),
 });
 
 export const vendorSchema = z.object({

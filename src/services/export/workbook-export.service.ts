@@ -89,6 +89,66 @@ export async function exportWorkbook(entityId: string, range?: DateRange): Promi
   wb.creator = "ONEVIEW Finance";
   wb.created = new Date();
 
+  // ── Dashboard ────────────────────────────────────────────────────
+  //
+  // Created first so it is the sheet the file opens on, as the workbook
+  // does. Laid out as the workbook's labelled blocks rather than a flat
+  // metric list, so a downloaded month reads the same as the month
+  // dashboard on screen.
+  const db = wb.addWorksheet("Dashboard");
+  db.getCell("A1").value = `${entity.name.toUpperCase()} — DASHBOARD (${currency})`;
+  db.getCell("A1").font = TITLE_FONT;
+  db.getCell("A2").value = range
+    ? `Period: ${range.from.toISOString().slice(0, 10)} to ${range.to.toISOString().slice(0, 10)}`
+    : "Period: all time";
+  db.getCell("A2").font = { size: 9, italic: true, color: { argb: "FF6B7280" } };
+
+  type DashLine = [string, number, ("money" | "pct" | "int")?];
+  const dashBlocks: { title: string; lines: DashLine[] }[] = [
+    {
+      title: "INFLOW SUMMARY",
+      lines: [
+        ["Total Deal Value (net of tax)", inflowSummary.totalDealValue.toNumber()],
+        ["Tax Invoiced", inflowSummary.taxInvoiced.toNumber()],
+        ["Received", inflowSummary.totalReceived.toNumber()],
+        ["Balance Receivable", inflowSummary.balanceReceivable.toNumber()],
+        ["Collection Rate", inflowSummary.collectionRate.toNumber(), "pct"],
+        ["Clients Closed", inflowSummary.clientsClosed, "int"],
+        ["New Clients", inflowSummary.newClientsClosed, "int"],
+        ["Existing / Repeat Clients", inflowSummary.existingOrRepeatClientsClosed, "int"],
+        ["Average Deal Size", inflowSummary.averageDealSize.toNumber()],
+      ],
+    },
+    {
+      title: "OUTFLOW SUMMARY",
+      lines: [
+        ["Total Due", overview.totalOutflowDue.toNumber()],
+        ["Paid", overview.outflowPaid.toNumber()],
+        ["Pending (Liabilities)", overview.outflowPending.toNumber()],
+        ["% Settled", overview.percentOutflowSettled.toNumber(), "pct"],
+      ],
+    },
+    {
+      title: "NET POSITION",
+      lines: [["Inflow received minus outflow paid", overview.netPosition.toNumber()]],
+    },
+  ];
+
+  let dbRow = 4;
+  for (const block of dashBlocks) {
+    styleHeaderRow(db, dbRow, [block.title, `Value (${currency})`]);
+    dbRow += 1;
+    for (const [label, value, kind] of block.lines) {
+      const row = db.getRow(dbRow);
+      row.getCell(1).value = label;
+      row.getCell(2).value = value;
+      row.getCell(2).numFmt = kind === "pct" ? "0.0%" : kind === "int" ? "0" : money;
+      dbRow += 1;
+    }
+    dbRow += 1; // blank row between blocks, as the sheet has
+  }
+  db.columns = [{ width: 36 }, { width: 22 }];
+
   // ── Payment Tracker ──────────────────────────────────────────────
   const pt = wb.addWorksheet(OUTFLOW_SHEET, { views: [{ state: "frozen", ySplit: OUTFLOW_HEADER_ROW }] });
   pt.getCell("A1").value = `${entity.name.toUpperCase()} — PAYMENT TRACKER (${currency})`;
@@ -254,39 +314,6 @@ export async function exportWorkbook(entityId: string, range?: DateRange): Promi
   [2, 3, 4].forEach((n) => (cs.getRow(csTotalRow).getCell(n).numFmt = money));
   cs.getRow(csTotalRow).getCell(5).numFmt = "0.0%";
   cs.columns = [{ width: 28 }, { width: 16 }, { width: 16 }, { width: 16 }, { width: 10 }, { width: 14 }, { width: 14 }, { width: 14 }, { width: 14 }];
-
-  // ── Summary (dashboard figures) ──────────────────────────────────
-  const sm = wb.addWorksheet("Summary");
-  sm.getCell("A1").value = `${entity.name.toUpperCase()} — SUMMARY (${currency})`;
-  sm.getCell("A1").font = TITLE_FONT;
-  if (range) {
-    sm.getCell("A2").value = `Period: ${range.from.toISOString().slice(0, 10)} to ${range.to.toISOString().slice(0, 10)}`;
-  } else {
-    sm.getCell("A2").value = "Period: all time";
-  }
-  sm.getCell("A2").font = { size: 9, italic: true, color: { argb: "FF6B7280" } };
-
-  const summaryRows: [string, number, string?][] = [
-    ["Total Inflow (Received)", overview.totalInflowReceived.toNumber()],
-    ["Total Outflow (Due)", overview.totalOutflowDue.toNumber()],
-    ["Outflow Paid", overview.outflowPaid.toNumber()],
-    ["Outflow Pending (Liabilities)", overview.outflowPending.toNumber()],
-    ["Net Position", overview.netPosition.toNumber()],
-    ["Receivables", overview.receivables.toNumber()],
-    ["% Outflow Settled", overview.percentOutflowSettled.toNumber(), "pct"],
-    ["Clients Closed", overview.clientsClosed, "int"],
-    ["Total Deal Value Closed", inflowSummary.totalDealValue.toNumber()],
-    ["Collection Rate", inflowSummary.collectionRate.toNumber(), "pct"],
-    ["Average Deal Size", inflowSummary.averageDealSize.toNumber()],
-  ];
-  styleHeaderRow(sm, 4, ["Metric", "Value"]);
-  summaryRows.forEach(([label, value, kind], i) => {
-    const row = sm.getRow(5 + i);
-    row.getCell(1).value = label;
-    row.getCell(2).value = value;
-    row.getCell(2).numFmt = kind === "pct" ? "0.0%" : kind === "int" ? "0" : money;
-  });
-  sm.columns = [{ width: 32 }, { width: 20 }];
 
   // ── Weekly Summary (only meaningful for a bounded period) ────────
   if (weekly) {

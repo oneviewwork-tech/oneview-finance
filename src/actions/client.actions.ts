@@ -1,11 +1,15 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { parseDateOnly } from "@/lib/date";
 import { requireEntityWrite } from "@/lib/rbac";
 import { writeAuditEvent } from "@/lib/audit";
 import { actionError, actionSuccess, zodFieldErrors, type ActionResult } from "@/lib/action-result";
 import { clientSchema } from "@/validators/finance";
+
+const { Decimal } = Prisma;
 
 export async function createClient(formData: FormData): Promise<ActionResult<{ id: string }>> {
   const parsed = clientSchema.safeParse({
@@ -16,6 +20,10 @@ export async function createClient(formData: FormData): Promise<ActionResult<{ i
     contactName: formData.get("contactName") || undefined,
     contactEmail: formData.get("contactEmail") || undefined,
     contactPhone: formData.get("contactPhone") || undefined,
+    dealDate: formData.get("dealDate"),
+    dealValue: formData.get("dealValue") || undefined,
+    taxAmount: formData.get("taxAmount") || undefined,
+    serviceProject: formData.get("serviceProject") || undefined,
   });
   if (!parsed.success) return actionError("Invalid input", zodFieldErrors(parsed.error));
 
@@ -48,6 +56,45 @@ export async function createClient(formData: FormData): Promise<ActionResult<{ i
       actorEmail: actor.email,
       after: client,
     });
+
+    // The opening deal, if one was entered. Booked as a normal inflow row so
+    // it behaves like every other deal from here on — it appears in the
+    // month's sheet, its dashboard and its exports, rather than being a
+    // special case attached to the client record.
+    if (parsed.data.dealValue) {
+      const netValue = new Decimal(parsed.data.dealValue);
+      const taxAmount = parsed.data.taxAmount ? new Decimal(parsed.data.taxAmount) : new Decimal(0);
+      // Gross, matching the inflow form: originalAmount is what the client
+      // owes and what payments settle against.
+      const gross = netValue.plus(taxAmount);
+      const dealDate = parsed.data.dealDate ? parseDateOnly(parsed.data.dealDate) : new Date();
+
+      const txn = await tx.financialTransaction.create({
+        data: {
+          entityId: parsed.data.entityId,
+          transactionType: "INFLOW",
+          transactionDate: dealDate,
+          originalAmount: gross,
+          taxAmount,
+          originalCurrency: entity.baseCurrency,
+          clientId: client.id,
+          description: parsed.data.serviceProject?.trim() || "Opening deal",
+          paidAmount: new Decimal(0),
+          status: "PENDING",
+          createdById: actor.id,
+        },
+      });
+      await writeAuditEvent(tx, {
+        entityType: "FinancialTransaction",
+        entityId: txn.id,
+        action: "CREATE",
+        actorUserId: actor.id,
+        actorEmail: actor.email,
+        after: { amount: gross.toString(), tax: taxAmount.toString() },
+        metadata: { via: "client-creation", clientId: client.id },
+      });
+    }
+
     return client;
   });
 
