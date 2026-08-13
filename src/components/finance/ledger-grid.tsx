@@ -1,9 +1,9 @@
 "use client";
 
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import type { Currency } from "@prisma/client";
-import { ArrowLeft, Check, Loader2, Plus, Trash2, TriangleAlert } from "lucide-react";
+import { ArrowLeft, Check, Loader2, MoreVertical, Pencil, Plus, Trash2, TriangleAlert } from "lucide-react";
 import { createLedgerRow, updateLedgerRow, deleteLedgerRow, type LedgerRowPatch } from "@/actions/ledger-row.actions";
 import { formatMoney } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -116,6 +116,12 @@ export function LedgerGrid({
   const [saveState, setSaveState] = useState<Record<string, SaveState>>({});
   const [error, setError] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
+  // Rows are read-only until explicitly opened for editing. Every cell being
+  // live meant a stray click could silently change a figure — in a finance
+  // sheet that is a real risk, not a papercut.
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [menuId, setMenuId] = useState<string | null>(null);
+  const [confirmId, setConfirmId] = useState<string | null>(null);
   const gridRef = useRef<HTMLTableElement>(null);
   // Snapshot before an optimistic write, so a rejected save can put the row
   // back exactly as it was rather than leaving a value the server refused.
@@ -132,6 +138,22 @@ export function LedgerGrid({
     }
     return { total, settled, outstanding: total - settled, fraction: total > 0 ? settled / total : 0 };
   }, [rows]);
+
+  useEffect(() => {
+    if (!menuId) return;
+    function onDown() {
+      setMenuId(null);
+    }
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") setMenuId(null);
+    }
+    document.addEventListener("pointerdown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("pointerdown", onDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [menuId]);
 
   const setRowState = useCallback((id: string, s: SaveState) => {
     setSaveState((prev) => ({ ...prev, [id]: s }));
@@ -219,6 +241,7 @@ export function LedgerGrid({
         clientTypeId: null,
       },
     ]);
+    setEditingId(result.data.id);
     // Put the caret in the first cell of the new row, the way pressing
     // "new row" in a spreadsheet does.
     requestAnimationFrame(() => {
@@ -229,6 +252,8 @@ export function LedgerGrid({
 
   async function removeRow(id: string) {
     setError(null);
+    setConfirmId(null);
+    setMenuId(null);
     setRowState(id, "saving");
     const result = await deleteLedgerRow(id);
     if (!result.success) {
@@ -269,14 +294,23 @@ export function LedgerGrid({
             {entityName} · {periodLabel(period)}
           </h2>
           <p className="mt-0.5 text-page-subtitle">
-            {labels.title} · {rows.length} {rows.length === 1 ? "entry" : "entries"} · {currency} · edits save as you type
+            {labels.title} · {rows.length} {rows.length === 1 ? "entry" : "entries"} · {currency}
+            {editingId ? " · editing a row — changes save as you leave each cell" : ""}
           </p>
         </div>
         {canWrite && (
-          <Button size="sm" onClick={addRow} disabled={adding} className="gap-1.5">
-            {adding ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-            Add row
-          </Button>
+          <div className="flex items-center gap-2">
+            {editingId && (
+              <Button size="sm" variant="outline" onClick={() => setEditingId(null)} className="gap-1.5">
+                <Check className="h-4 w-4" />
+                Done editing
+              </Button>
+            )}
+            <Button size="sm" onClick={addRow} disabled={adding} className="gap-1.5">
+              {adding ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+              Add row
+            </Button>
+          </div>
         )}
       </div>
 
@@ -300,19 +334,18 @@ export function LedgerGrid({
         <table ref={gridRef} className="w-full border-collapse text-table">
           <thead className="border-b border-border bg-secondary/60 text-left text-xs uppercase tracking-wide text-muted-foreground">
             <tr>
-              <th className="w-10 border-r border-border px-2 py-2 text-center font-medium">#</th>
+              <th className="w-16 border-r border-border px-2 py-2 text-center font-medium">#</th>
               {columns.map((c) => (
                 <th key={String(c.field)} className={cn("border-r border-border px-2 py-2 font-medium", c.width)}>
                   {c.label}
                 </th>
               ))}
-              {canWrite && <th className="w-10 px-2 py-2" />}
             </tr>
           </thead>
           <tbody>
             {rows.length === 0 && (
               <tr>
-                <td colSpan={columns.length + 2} className="px-4 py-10 text-center text-sm text-muted-foreground">
+                <td colSpan={columns.length + 1} className="px-4 py-10 text-center text-sm text-muted-foreground">
                   {canWrite ? "No rows yet — press Add row to start." : "No entries for this month."}
                 </td>
               </tr>
@@ -322,15 +355,69 @@ export function LedgerGrid({
               const paid = num(row.paidAmount);
               const status = statusOf(amount, paid);
               const state = saveState[row.id] ?? "idle";
+              const isEditing = editingId === row.id;
               let ci = -1;
               return (
-                <tr key={row.id} className={cn("border-b border-border-subtle", state === "error" && "bg-destructive-subtle/40")}>
-                  <td className="border-r border-border-subtle px-2 py-1 text-center text-metadata tabular-nums">
+                <tr
+                  key={row.id}
+                  className={cn(
+                    "border-b border-border-subtle",
+                    isEditing && "bg-brand-subtle/20 ring-1 ring-inset ring-brand/30",
+                    state === "error" && "bg-destructive-subtle/40"
+                  )}
+                >
+                  <td className="relative border-r border-border-subtle px-1 py-1 text-center text-metadata tabular-nums">
                     <span className="inline-flex items-center gap-1">
                       {ri + 1}
                       {state === "saving" && <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />}
                       {state === "saved" && <Check className="h-3 w-3 text-success" />}
+                      {canWrite && state !== "saving" && (
+                        <button
+                          type="button"
+                          aria-label={`Row ${ri + 1} actions`}
+                          aria-haspopup="menu"
+                          aria-expanded={menuId === row.id}
+                          onPointerDown={(e) => e.stopPropagation()}
+                          onClick={() => setMenuId(menuId === row.id ? null : row.id)}
+                          className="rounded p-0.5 text-muted-foreground/60 transition-ui hover:bg-accent hover:text-foreground"
+                        >
+                          <MoreVertical className="h-3.5 w-3.5" />
+                        </button>
+                      )}
                     </span>
+
+                    {menuId === row.id && (
+                      <div
+                        role="menu"
+                        onPointerDown={(e) => e.stopPropagation()}
+                        className="popover-panel absolute left-1 top-full z-30 mt-1 w-32 p-1 text-left"
+                      >
+                        <button
+                          type="button"
+                          role="menuitem"
+                          onClick={() => {
+                            setEditingId(row.id);
+                            setMenuId(null);
+                          }}
+                          className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-ui hover:bg-accent"
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                          Edit
+                        </button>
+                        <button
+                          type="button"
+                          role="menuitem"
+                          onClick={() => {
+                            setConfirmId(row.id);
+                            setMenuId(null);
+                          }}
+                          className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm text-destructive transition-ui hover:bg-destructive-subtle"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                          Delete
+                        </button>
+                      </div>
+                    )}
                   </td>
 
                   {columns.map((c) => {
@@ -364,6 +451,31 @@ export function LedgerGrid({
                     const colIndex = ci;
                     const field = c.field as keyof GridRow;
                     const value = (row[field] ?? "") as string;
+
+                    // Read-only until this row is opened for editing. Money is
+                    // rendered formatted rather than as a raw input value —
+                    // a narrow input clips its last digits, which on a
+                    // finance sheet reads as a different number entirely.
+                    if (!isEditing) {
+                      const display =
+                        c.type === "money"
+                          ? formatMoney(num(value), currency)
+                          : c.type === "select"
+                            ? c.options?.find((o) => o.id === value)?.name ?? "—"
+                            : value || "—";
+                      return (
+                        <td
+                          key={String(c.field)}
+                          className={cn(
+                            "whitespace-nowrap border-r border-border-subtle px-2 py-2 text-sm",
+                            c.type === "money" && "text-right tabular-nums",
+                            !value && c.type !== "money" && "text-muted-foreground"
+                          )}
+                        >
+                          {display}
+                        </td>
+                      );
+                    }
 
                     return (
                       <td key={String(c.field)} className="border-r border-border-subtle p-0">
@@ -416,18 +528,6 @@ export function LedgerGrid({
                     );
                   })}
 
-                  {canWrite && (
-                    <td className="px-1 py-1 text-center">
-                      <button
-                        type="button"
-                        onClick={() => removeRow(row.id)}
-                        aria-label={`Delete row ${ri + 1}`}
-                        className="rounded p-1 text-muted-foreground/40 transition-ui hover:bg-destructive-subtle hover:text-destructive"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </button>
-                    </td>
-                  )}
                 </tr>
               );
             })}
@@ -436,9 +536,32 @@ export function LedgerGrid({
       </div>
 
       <p className="mt-2 text-metadata">
-        Yellow cells are typed, blue-grey are calculated — same convention as the workbook. Enter or ↓ moves down a row;
-        Escape leaves a cell without saving the change.
+        Use the ⋮ menu on a row to edit or delete it. While editing, yellow cells are typed and blue-grey are
+        calculated — same convention as the workbook. Enter or ↓ moves down a row; Escape leaves a cell without saving.
       </p>
+
+      {confirmId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div role="alertdialog" aria-modal="true" className="w-full max-w-sm rounded-xl border border-border bg-card p-5 shadow-xl">
+            <h3 className="text-section-title">Delete this row?</h3>
+            <p className="mt-1.5 text-sm text-muted-foreground">
+              {(() => {
+                const r = rows.find((x) => x.id === confirmId);
+                if (!r) return "This entry will be removed.";
+                return `"${r.description}" · ${formatMoney(num(r.amount), currency)} will be removed from this month, along with any payments recorded against it. This can't be undone.`;
+              })()}
+            </p>
+            <div className="mt-4 flex justify-end gap-2">
+              <Button size="sm" variant="ghost" onClick={() => setConfirmId(null)}>
+                Cancel
+              </Button>
+              <Button size="sm" variant="destructive" onClick={() => removeRow(confirmId)}>
+                Delete row
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
