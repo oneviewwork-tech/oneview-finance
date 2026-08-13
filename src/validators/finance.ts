@@ -69,7 +69,13 @@ export const createInflowSchema = z.object({
   // earns from it, and it's what makes a department a profit centre rather
   // than a cost centre. Optional: not every receipt is attributable.
   departmentId: optionalCuid,
+  /**
+   * The pre-tax figure. What gets stored as the transaction amount is
+   * dealValue + taxAmount, because that gross figure is what the client
+   * owes and what payments settle against.
+   */
   dealValue: moneyString,
+  taxAmount: optionalMoneyString,
   amountReceived: optionalMoneyString, // initial receipt, may be partial or omitted (PENDING)
   paymentMethodId: optionalCuid,
   referenceNumber: z.string().trim().max(120).optional(),

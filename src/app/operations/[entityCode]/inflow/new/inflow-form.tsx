@@ -35,6 +35,27 @@ export function InflowForm({
 }) {
   const router = useRouter();
   const [useNewClient, setUseNewClient] = useState(clients.length === 0);
+  // Value and tax are held in state only so the total can be shown as it's
+  // typed — the server recomputes the gross itself and never trusts this.
+  const [value, setValue] = useState("");
+  const [taxPct, setTaxPct] = useState("");
+  const parseAmount = (v: string) => {
+    const n = Number(v);
+    return Number.isFinite(n) && n > 0 ? n : 0;
+  };
+  const netValue = parseAmount(value);
+  const pct = parseAmount(taxPct);
+  // Rounded to the currency's two places here so the figure shown is exactly
+  // the figure submitted — a displayed 52.50 that posted 52.4999 would put
+  // the stored total a paisa off what the user was told.
+  const taxAmount = Math.round(netValue * (pct / 100) * 100) / 100;
+  const gross = netValue + taxAmount;
+  const taxLabel = netValue > 0 && pct > 0 ? taxAmount.toFixed(2) : "—";
+  const grossLabel = gross > 0 ? gross.toFixed(2) : "—";
+  // A hint, not a default: rates change and neither entity should have one
+  // silently applied to a deal it doesn't belong on.
+  const rateHint = currency === "AED" ? "UAE VAT is usually 5%" : "GST is commonly 18%";
+
   const [state, formAction, pending] = useActionState<ActionResult<{ id: string }> | null, FormData>(
     async (_prev, formData) => createInflow(formData),
     null
@@ -63,9 +84,53 @@ export function InflowForm({
           <FieldError messages={fieldErrors?.transactionDate} />
         </div>
         <div>
-          <Label htmlFor="dealValue">Deal Value ({currency})</Label>
-          <Input inputMode="decimal" id="dealValue" name="dealValue" placeholder="0.00" required className="mt-1" />
+          <Label htmlFor="dealValue">Value ({currency})</Label>
+          <Input
+            inputMode="decimal"
+            id="dealValue"
+            name="dealValue"
+            placeholder="0.00"
+            required
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+            className="mt-1"
+          />
+          <p className="mt-1 text-metadata">Before tax.</p>
           <FieldError messages={fieldErrors?.dealValue} />
+        </div>
+      </div>
+
+      <div className="grid grid-cols-3 gap-4">
+        <div>
+          <Label htmlFor="taxPct">Tax %</Label>
+          <Input
+            inputMode="decimal"
+            id="taxPct"
+            placeholder="0"
+            value={taxPct}
+            onChange={(e) => setTaxPct(e.target.value)}
+            className="mt-1"
+          />
+          <p className="mt-1 text-metadata">{rateHint}. Leave blank if none.</p>
+        </div>
+        <div>
+          {/* Computed from the percentage, but posted as an amount: the
+              stored figure is money, and a rate would have to be re-applied
+              (and could drift) every time the row was read. */}
+          <Label>Tax ({currency})</Label>
+          <div className="mt-1 flex h-10 items-center justify-end rounded-lg border border-border bg-muted px-3 text-sm tabular-nums">
+            {taxLabel}
+          </div>
+          <input type="hidden" name="taxAmount" value={taxAmount > 0 ? taxAmount.toFixed(2) : ""} />
+          <p className="mt-1 text-metadata">Collected for the government.</p>
+          <FieldError messages={fieldErrors?.taxAmount} />
+        </div>
+        <div>
+          <Label>Value + Tax ({currency})</Label>
+          <div className="mt-1 flex h-10 items-center justify-end rounded-lg border border-border bg-muted px-3 text-sm font-medium tabular-nums">
+            {grossLabel}
+          </div>
+          <p className="mt-1 text-metadata">Invoiced to the client.</p>
         </div>
       </div>
 

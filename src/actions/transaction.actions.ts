@@ -27,6 +27,7 @@ export async function createInflow(formData: FormData): Promise<ActionResult<{ i
     description: formData.get("description"),
     departmentId: formData.get("departmentId"),
     dealValue: formData.get("dealValue"),
+    taxAmount: formData.get("taxAmount") || undefined,
     amountReceived: formData.get("amountReceived") || undefined,
     paymentMethodId: formData.get("paymentMethodId"),
     referenceNumber: formData.get("referenceNumber") || undefined,
@@ -47,7 +48,12 @@ export async function createInflow(formData: FormData): Promise<ActionResult<{ i
 
   const actor = await requireEntityWrite(entity.code);
 
-  const dealValue = new Decimal(input.dealValue);
+  // The row's amount is the gross: value plus tax. Everything downstream —
+  // receivables, dashboards, exports — sums originalAmount, so it has to be
+  // the figure actually owed, not the pre-tax one.
+  const netValue = new Decimal(input.dealValue);
+  const taxAmount = input.taxAmount ? new Decimal(input.taxAmount) : new Decimal(0);
+  const dealValue = netValue.plus(taxAmount);
   const amountReceived = input.amountReceived ? new Decimal(input.amountReceived) : new Decimal(0);
   if (wouldOverpay(dealValue, new Decimal(0), amountReceived)) {
     return actionError("Amount received cannot exceed the deal value", {
@@ -85,6 +91,7 @@ export async function createInflow(formData: FormData): Promise<ActionResult<{ i
         transactionType: "INFLOW",
         transactionDate,
         originalAmount: dealValue,
+        taxAmount,
         originalCurrency: entity.baseCurrency,
         clientId,
         departmentId: input.departmentId,

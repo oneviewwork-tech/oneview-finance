@@ -332,7 +332,14 @@ model FinancialTransaction {
 
   // Original currency is always preserved — reporting-currency conversion
   // is a read-time projection, never written back over this value.
+  //
+  // originalAmount is the GROSS figure — what the client owes or the vendor
+  // is owed, tax included. It has to be, because it is what payments settle
+  // against and what every dashboard, receivable and export already sums;
+  // making it net would understate every one of those totals the moment
+  // anyone entered a tax figure. The net value is originalAmount - taxAmount.
   originalAmount   Decimal  @db.Decimal(14, 2)
+  taxAmount        Decimal  @default(0) @db.Decimal(14, 2)
   originalCurrency Currency
 
   // Outflow-only fields
