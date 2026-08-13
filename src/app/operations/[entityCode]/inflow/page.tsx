@@ -2,16 +2,33 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { requireEntityBySlug } from "@/lib/entities";
 import { calculateCollectedFraction } from "@/domain/finance/calculations";
+import { parseStatusFilter, statusWhereClause, describeStatusFilter } from "@/domain/finance/transaction-filter";
 import { Button } from "@/components/ui/button";
 import { ExportMenu } from "@/components/finance/export-menu";
+import { ActiveFilterChip } from "@/components/finance/active-filter-chip";
 import { InflowTable } from "./inflow-table";
 
-export default async function InflowListPage({ params }: { params: Promise<{ entityCode: string }> }) {
+export default async function InflowListPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ entityCode: string }>;
+  searchParams: Promise<{ status?: string }>;
+}) {
   const { entityCode } = await params;
+  const { status } = await searchParams;
   const entity = await requireEntityBySlug(entityCode);
 
+  // Lets a dashboard tile deep-link into the rows behind its number.
+  const filter = parseStatusFilter(status);
+  const statusClause = statusWhereClause(filter);
+
   const transactions = await prisma.financialTransaction.findMany({
-    where: { entityId: entity.id, transactionType: "INFLOW" },
+    where: {
+      entityId: entity.id,
+      transactionType: "INFLOW",
+      ...(statusClause ? { status: statusClause } : {}),
+    },
     include: { client: true },
     orderBy: { transactionDate: "desc" },
     take: 200,
@@ -40,6 +57,15 @@ export default async function InflowListPage({ params }: { params: Promise<{ ent
           </Link>
         </div>
       </div>
+
+      {filter && (
+        <div className="mt-3">
+          <ActiveFilterChip
+            label={describeStatusFilter(filter)}
+            clearHref={`/operations/${entityCode}/inflow`}
+          />
+        </div>
+      )}
 
       <div className="mt-4">
         <InflowTable rows={rows} entityCode={entityCode} entityName={entity.name} />

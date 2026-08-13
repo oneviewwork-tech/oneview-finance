@@ -12,7 +12,7 @@ import {
 import { redirect } from "next/navigation";
 import type { Currency } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { requireUser, canViewIntelligenceEntity, defaultIntelligenceEntity } from "@/lib/rbac";
+import { requireUser, canViewIntelligenceEntity, defaultIntelligenceEntity, canAccessOperations } from "@/lib/rbac";
 import { formatMoney, formatPercent } from "@/lib/format";
 import { entitySlug } from "@/lib/entities";
 import {
@@ -270,6 +270,11 @@ export default async function IntelligencePage({
   // ── Single-entity dashboard (UAE / India), always in native currency ──
   const businessEntity = await prisma.businessEntity.findUniqueOrThrow({ where: { code: entity } });
   const slug = entitySlug(entity);
+
+  // Tiles link into the records behind their number — but only for roles that
+  // can actually open Accounts. A Management Viewer has no access there, so
+  // for them the tiles stay plain rather than dangling a link that dead-ends.
+  const opsHref = (path: string) => (canAccessOperations(user.role) ? path : undefined);
   const currency = businessEntity.baseCurrency;
 
   const [
@@ -362,6 +367,7 @@ export default async function IntelligencePage({
           trend={inflowTrend}
           delta={{ percentChange: pct(overview.totalInflowReceived, previousOverview.totalInflowReceived), upIsGood: true }}
           comparisonLabel={comparisonLabel}
+          href={opsHref(`/operations/${slug}/inflow`)}
         />
         <KpiCard
           label="Total Outflow (Due)"
@@ -371,6 +377,7 @@ export default async function IntelligencePage({
           trend={outflowTrend}
           delta={{ percentChange: pct(overview.totalOutflowDue, previousOverview.totalOutflowDue), upIsGood: false }}
           comparisonLabel={comparisonLabel}
+          href={opsHref(`/operations/${slug}/outflow`)}
         />
         <KpiCard
           label="Liabilities"
@@ -381,6 +388,7 @@ export default async function IntelligencePage({
           trend={pendingTrend}
           delta={{ percentChange: pct(overview.outflowPending, previousOverview.outflowPending), upIsGood: false }}
           comparisonLabel={comparisonLabel}
+          href={opsHref(`/operations/${slug}/outflow?status=unpaid`)}
         />
         <KpiCard
           label="% Outflow Settled"
@@ -389,6 +397,7 @@ export default async function IntelligencePage({
           tone="success"
           progress={overview.percentOutflowSettled.toNumber()}
           sublabel={`${formatMoney(overview.outflowPaid, currency)} settled`}
+          href={opsHref(`/operations/${slug}/outflow?status=PAID`)}
         />
         <KpiCard
           label="Receivables"
@@ -396,6 +405,7 @@ export default async function IntelligencePage({
           sublabel="Still owed by clients"
           icon={HandCoins}
           tone="warning"
+          href={opsHref(`/operations/${slug}/inflow?status=unpaid`)}
         />
         <KpiCard
           label="Clients Closed"
@@ -410,6 +420,7 @@ export default async function IntelligencePage({
             upIsGood: true,
           }}
           comparisonLabel={comparisonLabel}
+          href={opsHref(`/operations/${slug}/clients`)}
         />
         <KpiCard
           label="Outflow Paid"
@@ -417,13 +428,14 @@ export default async function IntelligencePage({
           icon={PieChart}
           tone="success"
           trend={outflowTrend}
+          href={opsHref(`/operations/${slug}/outflow?status=PAID`)}
         />
         <KpiCard
           label="Open Receivables"
           value={String(receivables.rows.length)}
           sublabel="Deals not fully collected"
           icon={HandCoins}
-          href={`/operations/${slug}/inflow`}
+          href={opsHref(`/operations/${slug}/inflow?status=unpaid`)}
         />
       </div>
 

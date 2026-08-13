@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowDownRight, ArrowUpRight, type LucideIcon } from "lucide-react";
+import { ArrowDownRight, ArrowUpRight, ChevronRight, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Sparkline } from "@/components/charts/sparkline";
 
@@ -59,12 +59,19 @@ export function KpiCard({
             <Icon className="h-4 w-4" />
           </div>
         )}
-        {hasDelta && (
-          <div className={cn("flex items-center gap-0.5 text-xs font-medium", deltaColor)}>
-            <DeltaIcon className="h-3 w-3" />
-            {Math.abs(deltaValue * 100).toFixed(1)}%
-          </div>
-        )}
+        <div className="flex items-center gap-1.5">
+          {hasDelta && (
+            <div className={cn("flex items-center gap-0.5 text-xs font-medium", deltaColor)}>
+              <DeltaIcon className="h-3 w-3" />
+              {Math.abs(deltaValue * 100).toFixed(1)}%
+            </div>
+          )}
+          {/* Only on drill-down tiles — signals there's something behind the
+              number, and slides on hover to confirm it's live. */}
+          {href && (
+            <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground/50 transition-transform group-hover:translate-x-0.5 group-hover:text-muted-foreground" />
+          )}
+        </div>
       </div>
 
       <div className="mt-3 flex items-end justify-between gap-2">
@@ -98,8 +105,11 @@ export function KpiCard({
 
   if (href) {
     return (
-      <Link href={href} className="block h-full">
-        <div className="h-full rounded-xl border border-border bg-card p-5 transition-ui hover:border-border-subtle hover:shadow-md">
+      <Link
+        href={href}
+        className="group block h-full rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      >
+        <div className="h-full rounded-xl border border-border bg-card p-5 transition-ui hover:-translate-y-0.5 hover:border-brand/30 hover:shadow-md">
           {content}
         </div>
       </Link>
