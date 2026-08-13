@@ -36,6 +36,11 @@ describe("COMBINED_METRICS", () => {
     expect(nonMoney).toEqual(["clientsClosed"]);
   });
 
+  it("includes salary, which drills to the entity split rather than one list", () => {
+    expect(COMBINED_METRICS.salaryPaid.isMoney).toBe(true);
+    expect(COMBINED_METRICS.salaryPaid.recordsPath!("uae")).toBe("/operations/uae/outflow/all?status=PAID");
+  });
+
   it("points money metrics at the records that make them up", () => {
     expect(COMBINED_METRICS.outflowPending.recordsPath!("uae")).toBe("/operations/uae/outflow/all?status=unpaid");
     expect(COMBINED_METRICS.receivables.recordsPath!("india")).toBe("/operations/india/inflow/all?status=unpaid");

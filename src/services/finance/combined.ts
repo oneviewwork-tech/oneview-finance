@@ -14,6 +14,7 @@ export interface ConvertedFigures {
   outflowPending: Prisma.Decimal;
   receivables: Prisma.Decimal;
   netPosition: Prisma.Decimal;
+  salaryPaid: Prisma.Decimal;
   rate?: Prisma.Decimal;
   rateDate?: Date;
   source?: RateSource;
@@ -32,7 +33,14 @@ export interface CombinedSummaryResult {
   combined: (ConvertedFigures & { clientsClosed: number }) | { available: false };
 }
 
-const MONEY_FIELDS = ["totalInflow", "totalOutflowDue", "outflowPaid", "outflowPending", "receivables"] as const;
+const MONEY_FIELDS = [
+  "totalInflow",
+  "totalOutflowDue",
+  "outflowPaid",
+  "outflowPending",
+  "receivables",
+  "salaryPaid",
+] as const;
 
 /**
  * The spec's core combined-dashboard rule: never just add AED + INR. Every
@@ -61,6 +69,7 @@ export async function getCombinedSummary(reportingCurrency: Currency, range: Dat
             outflowPending: native.outflowPending,
             receivables: native.receivables,
             netPosition: native.netPosition,
+            salaryPaid: native.salaryPaid,
             rate: new Decimal(1),
             rateDate: asOfDate,
             source: "MANUAL" as RateSource,
@@ -84,12 +93,13 @@ export async function getCombinedSummary(reportingCurrency: Currency, range: Dat
             outflowPending: new Decimal(0),
             receivables: new Decimal(0),
             netPosition: new Decimal(0),
+            salaryPaid: new Decimal(0),
           },
         };
       }
 
-      const [totalInflow, totalOutflowDue, outflowPaid, outflowPending, receivables] = MONEY_FIELDS.map((field) =>
-        native[field].mul(resolved.rate)
+      const [totalInflow, totalOutflowDue, outflowPaid, outflowPending, receivables, salaryPaid] = MONEY_FIELDS.map(
+        (field) => native[field].mul(resolved.rate)
       );
 
       return {
@@ -102,6 +112,7 @@ export async function getCombinedSummary(reportingCurrency: Currency, range: Dat
           outflowPending,
           receivables,
           netPosition: totalInflow.minus(outflowPaid),
+          salaryPaid,
           rate: resolved.rate,
           rateDate: resolved.rateDate,
           source: resolved.source,
@@ -119,6 +130,7 @@ export async function getCombinedSummary(reportingCurrency: Currency, range: Dat
     (acc, r) => ({
       available: true as const,
       totalInflow: acc.totalInflow.plus(r.converted.totalInflow),
+      salaryPaid: acc.salaryPaid.plus(r.converted.salaryPaid),
       totalOutflowDue: acc.totalOutflowDue.plus(r.converted.totalOutflowDue),
       outflowPaid: acc.outflowPaid.plus(r.converted.outflowPaid),
       outflowPending: acc.outflowPending.plus(r.converted.outflowPending),
@@ -129,6 +141,7 @@ export async function getCombinedSummary(reportingCurrency: Currency, range: Dat
     {
       available: true as const,
       totalInflow: new Decimal(0),
+      salaryPaid: new Decimal(0),
       totalOutflowDue: new Decimal(0),
       outflowPaid: new Decimal(0),
       outflowPending: new Decimal(0),

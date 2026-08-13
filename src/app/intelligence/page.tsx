@@ -7,7 +7,11 @@ import {
   HandCoins,
   PieChart,
   Scale,
+  TrendingDown,
+  TrendingUp,
+  Timer,
   Users,
+  Wallet,
 } from "lucide-react";
 import { redirect } from "next/navigation";
 import type { Currency } from "@prisma/client";
@@ -33,6 +37,8 @@ import {
 } from "@/services/finance/summary";
 import { getCombinedSummary, getFxBannerContext } from "@/services/finance/combined";
 import { getAlerts } from "@/services/finance/alerts";
+import { getSalarySummary, getProfitability, getPaymentLag } from "@/services/finance/profitability";
+import { lossMargin, profitMargin } from "@/domain/finance/profitability";
 import { AlertsPanel } from "@/components/finance/alerts-panel";
 import { ensureTodayLiveRate } from "@/services/fx/exchange-rate.service";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -181,6 +187,19 @@ export default async function IntelligencePage({
                 href={breakdownHref("outflowPending")}
               />
               <KpiCard
+                label="Salary Paid"
+                value={formatMoney(c.salaryPaid, currency)}
+                icon={Wallet}
+                sublabel={
+                  c.outflowPaid.gt(0)
+                    ? `${((c.salaryPaid.toNumber() / c.outflowPaid.toNumber()) * 100).toFixed(0)}% of all spend`
+                    : undefined
+                }
+                delta={prev.available ? { percentChange: pct(c.salaryPaid, prev.salaryPaid), upIsGood: false } : undefined}
+                comparisonLabel={comparisonLabel}
+                href={breakdownHref("salaryPaid")}
+              />
+              <KpiCard
                 label="Receivables"
                 value={formatMoney(c.receivables, currency)}
                 sublabel="Still owed by clients"
@@ -300,6 +319,17 @@ export default async function IntelligencePage({
   // can actually open Accounts. A Management Viewer has no access there, so
   // for them the tiles stay plain rather than dangling a link that dead-ends.
   const opsHref = (path: string) => (canAccessOperations(user.role) ? path : undefined);
+
+  // Carries entity and period across, so a detail page opens on exactly the
+  // view whose number was clicked rather than resetting to this month.
+  const insightHref = (insight: string) => {
+    const qs = new URLSearchParams(
+      Object.entries(params).filter((e): e is [string, string] => typeof e[1] === "string")
+    );
+    qs.set("insight", insight);
+    qs.set("entity", entity);
+    return `/intelligence/insight?${qs.toString()}`;
+  };
   const currency = businessEntity.baseCurrency;
 
   const [
@@ -312,6 +342,9 @@ export default async function IntelligencePage({
     inflowSummary,
     departmentPerformance,
     alerts,
+    salary,
+    profitability,
+    paymentLag,
   ] =
     await Promise.all([
       getDashboardOverview(businessEntity.id, range),
@@ -324,6 +357,9 @@ export default async function IntelligencePage({
       getDepartmentPerformance(businessEntity.id, range),
       // Not range-scoped on purpose — see getAlerts().
       getAlerts(businessEntity.id),
+      getSalarySummary(businessEntity.id, range),
+      getProfitability(businessEntity.id, range),
+      getPaymentLag(businessEntity.id, range),
     ]);
 
   // Trend is deliberately NOT scoped to the selected range: a cash-flow
@@ -459,6 +495,47 @@ export default async function IntelligencePage({
           sublabel="Deals not fully collected"
           icon={HandCoins}
           href={opsHref(`/operations/${slug}/inflow/all?status=unpaid`)}
+        />
+      </div>
+
+      {/* Each of these drills into its own page rather than a filtered list:
+          the number behind them is a calculation, not a set of rows, so
+          "show me the records" would not actually explain it. */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <KpiCard
+          label="Salary"
+          value={formatMoney(salary.paid, currency)}
+          sublabel={`${(salary.shareOfOutflow.toNumber() * 100).toFixed(0)}% of all spend`}
+          icon={Wallet}
+          href={insightHref("salary")}
+        />
+        <KpiCard
+          label="Profit %"
+          value={`${(profitMargin(profitability).toNumber() * 100).toFixed(1)}%`}
+          sublabel={formatMoney(profitability.profit, currency)}
+          icon={TrendingUp}
+          tone={profitability.isLoss ? "default" : "success"}
+          href={insightHref("profit")}
+        />
+        <KpiCard
+          label="Loss %"
+          value={`${(lossMargin(profitability).toNumber() * 100).toFixed(1)}%`}
+          sublabel={profitability.isLoss ? "Expenses exceeded revenue" : "Trading at a profit"}
+          icon={TrendingDown}
+          tone={profitability.isLoss ? "destructive" : "default"}
+          href={insightHref("loss")}
+        />
+        <KpiCard
+          label="Client Payment Speed"
+          value={`${paymentLag.averageDays} days`}
+          sublabel={
+            paymentLag.awaitingCount > 0
+              ? `${paymentLag.awaitingCount} still unpaid`
+              : `median ${paymentLag.medianDays} days`
+          }
+          icon={Timer}
+          tone={paymentLag.averageDays > 30 ? "warning" : "default"}
+          href={insightHref("paymentSpeed")}
         />
       </div>
 

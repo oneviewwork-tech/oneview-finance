@@ -14,6 +14,7 @@
  * genuinely absent from the converted shape.
  */
 export type MoneyMetricKey =
+  | "salaryPaid"
   | "totalInflow"
   | "totalOutflowDue"
   | "outflowPaid"
@@ -78,6 +79,13 @@ export const COMBINED_METRICS: Record<CombinedMetricKey, CombinedMetricSpec> = {
     label: "Net Position",
     description: "Inflow received minus outflow paid, by entity.",
     isMoney: true,
+  },
+  salaryPaid: {
+    key: "salaryPaid",
+    label: "Salary Paid",
+    description: "Payroll settled, by entity.",
+    isMoney: true,
+    recordsPath: (slug) => `/operations/${slug}/outflow/all?status=PAID`,
   },
   clientsClosed: {
     key: "clientsClosed",

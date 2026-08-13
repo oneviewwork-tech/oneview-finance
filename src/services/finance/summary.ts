@@ -488,6 +488,8 @@ export interface EntitySummaryRow {
   outflowPending: Prisma.Decimal;
   receivables: Prisma.Decimal;
   netPosition: Prisma.Decimal;
+  /** Payroll actually paid — carried here so the combined view can convert it. */
+  salaryPaid: Prisma.Decimal;
   clientsClosed: number;
 }
 
@@ -496,9 +498,12 @@ export async function getEntitySummary(range?: DateRange): Promise<EntitySummary
 
   return Promise.all(
     entities.map(async (entity) => {
-      const [inflow, outflow] = await Promise.all([
+      const [inflow, outflow, salaryPaid] = await Promise.all([
         getInflowSummary(entity.id, range),
         getOutflowSummary(entity.id, range),
+        // Imported lazily to avoid a cycle: the profitability service reads
+        // this module's inflow/outflow summaries.
+        import("./profitability").then((m) => m.getSalarySummary(entity.id, range).then((x) => x.paid)),
       ]);
       return {
         entityId: entity.id,
@@ -511,6 +516,7 @@ export async function getEntitySummary(range?: DateRange): Promise<EntitySummary
         outflowPending: outflow.totalPending,
         receivables: inflow.balanceReceivable,
         netPosition: inflow.totalReceived.minus(outflow.totalPaid),
+        salaryPaid,
         clientsClosed: inflow.clientsClosed,
       };
     })
