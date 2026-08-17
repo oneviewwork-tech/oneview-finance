@@ -157,6 +157,23 @@ export interface CommitImportResult {
   inflowImported: number;
 }
 
+/**
+ * A workbook import is one interactive transaction covering every row and
+ * its audit event — a full Payment Tracker plus Inflow Tracker is hundreds
+ * of round trips, and Prisma's default 5-second ceiling is comfortably
+ * shorter than that takes against a remote database on a slow day.
+ *
+ * When it expires the transaction closes and the NEXT write inside it fails
+ * with "Transaction not found ... refers to an old closed transaction",
+ * which reads like a Prisma bug rather than a timeout. It surfaced as an
+ * import that failed intermittently and only under load.
+ *
+ * maxWait is raised alongside it because a cold Neon compute can take
+ * seconds just to hand out a connection, and timing out while still waiting
+ * to start is the same failure wearing a different message.
+ */
+const IMPORT_TRANSACTION_OPTIONS = { timeout: 120_000, maxWait: 20_000 } as const;
+
 /** Inserts every row atomically (all-or-nothing) and tags each with a batchId so the whole import can be rolled back later by that id. */
 export async function commitImport(input: CommitImportInput): Promise<CommitImportResult> {
   const batchId = randomUUID();
@@ -257,7 +274,7 @@ export async function commitImport(input: CommitImportInput): Promise<CommitImpo
         metadata: { batchId, sourceFileName: input.sourceFileName, sourceRow: row.rowNumber, sheet: "Inflow Tracker" },
       });
     }
-  });
+  }, IMPORT_TRANSACTION_OPTIONS);
 
   return { batchId, outflowImported: input.outflowRows.length, inflowImported: input.inflowRows.length };
 }
@@ -300,7 +317,10 @@ export async function rollbackImportBatch(batchId: string, actorId: string, acto
       });
     }
     await tx.financialTransaction.deleteMany({ where: { id: { in: transactionIds } } });
-  });
+    // Same ceiling as the import: this writes one audit row per imported
+    // transaction, so it is the same volume and would time out the same way.
+    // A rollback that dies half-finished is worse than one that is slow.
+  }, IMPORT_TRANSACTION_OPTIONS);
 
   return { deletedCount: transactionIds.length };
 }

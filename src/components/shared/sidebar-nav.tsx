@@ -7,6 +7,7 @@ import { usePathname, useSearchParams } from "next/navigation";
 import {
   LayoutDashboard,
   Wallet,
+  Building2,
   ArrowRightLeft,
   Upload,
   Database,
@@ -28,6 +29,7 @@ const ICONS: Record<string, LucideIcon> = {
   import: Upload,
   data: Database,
   users: UserCog,
+  dept: Building2,
 };
 
 type IconKey = keyof typeof ICONS;

@@ -29,7 +29,6 @@ import { calculatePeriodChange } from "@/domain/finance/comparison";
 import {
   getCategorySummary,
   getDashboardOverview,
-  getDepartmentPerformance,
   getInflowSummary,
   getMonthlySummary,
   getReceivables,
@@ -50,7 +49,7 @@ import { WeeklyOutflowChart } from "@/components/charts/weekly-outflow-chart";
 import { EntityComparisonChart } from "@/components/charts/entity-comparison-chart";
 import { STATUS_CHART_COLORS } from "@/lib/chart-palette";
 import { EmptyState } from "@/components/ui/empty-state";
-import { Badge, StatusBadge } from "@/components/ui/badge";
+import { StatusBadge } from "@/components/ui/badge";
 import { IntelligenceFilters } from "./filters";
 import { FxBanner } from "./fx-banner";
 import { CombinedConversionSummary } from "./combined-conversion-summary";
@@ -340,7 +339,6 @@ export default async function IntelligencePage({
     receivables,
     monthly,
     inflowSummary,
-    departmentPerformance,
     alerts,
     salary,
     profitability,
@@ -354,7 +352,6 @@ export default async function IntelligencePage({
       getReceivables(businessEntity.id, range),
       getMonthlySummary(businessEntity.id),
       getInflowSummary(businessEntity.id, range),
-      getDepartmentPerformance(businessEntity.id, range),
       // Not range-scoped on purpose — see getAlerts().
       getAlerts(businessEntity.id),
       getSalarySummary(businessEntity.id, range),
@@ -764,75 +761,6 @@ export default async function IntelligencePage({
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Department Performance</CardTitle>
-          <CardDescription>
-            {departmentPerformance.length === 0
-              ? "Tag a Department on the Inflow and Outflow forms to see this."
-              : `Earned vs spent per department ${rangeLabel}. Only tagged rows count, so these won't add up to entity totals.`}
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="overflow-x-auto">
-          {departmentPerformance.length === 0 ? (
-            <EmptyState
-              title="No departments tracked yet"
-              description="Add departments under Master Data, then tag them on inflow and outflow entries to see which departments earn more than they cost."
-              actionLabel="Manage departments"
-              actionHref="/operations/categories"
-            />
-          ) : (
-            <table className="w-full min-w-[720px] text-table">
-              <thead className="text-left text-xs uppercase tracking-wide text-muted-foreground">
-                <tr>
-                  <th className="py-2 font-medium">Department</th>
-                  <th className="py-2 text-right font-medium">Earned</th>
-                  <th className="py-2 text-right font-medium">Spent</th>
-                  <th className="py-2 text-right font-medium">Net</th>
-                  <th className="py-2 text-right font-medium">Collected</th>
-                  <th className="py-2 text-right font-medium">Status</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border-subtle">
-                {departmentPerformance.map((d) => {
-                  const positive = d.net.gte(0);
-                  return (
-                    <tr key={d.departmentId} className="hover:bg-accent/40">
-                      <td className="py-2">
-                        {d.departmentName}
-                        <span className="ml-1.5 text-metadata">
-                          {d.inflowCount}↓ {d.outflowCount}↑
-                        </span>
-                      </td>
-                      <td className="py-2 text-right">{formatMoney(d.earned, currency)}</td>
-                      <td className="py-2 text-right">{formatMoney(d.spent, currency)}</td>
-                      {/* The one number people scan for — colour it, since a
-                          department costing more than it earns is the finding. */}
-                      <td className={`py-2 text-right font-medium ${positive ? "text-success" : "text-destructive"}`}>
-                        {formatMoney(d.net, currency)}
-                      </td>
-                      <td className="py-2 text-right text-muted-foreground">
-                        {d.earned.gt(0) ? `${(d.collectedFraction.toNumber() * 100).toFixed(0)}%` : "—"}
-                      </td>
-                      <td className="py-2 text-right">
-                        {d.earned.lte(0) ? (
-                          <Badge variant="neutral" dot>
-                            Cost only
-                          </Badge>
-                        ) : (
-                          <Badge variant={d.fullyCollected ? "success" : "warning"} dot>
-                            {d.fullyCollected ? "Collected" : "Outstanding"}
-                          </Badge>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          )}
-        </CardContent>
-      </Card>
 
       <Card>
         <CardHeader>

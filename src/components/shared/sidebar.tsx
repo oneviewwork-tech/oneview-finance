@@ -7,10 +7,13 @@ import { entitySlug } from "@/lib/entities";
 export async function Sidebar() {
   const user = await requireUser();
 
-  const intelligenceChildren: { label: string; href: string; icon?: "fx" }[] = [
+  const intelligenceChildren: { label: string; href: string; icon?: "fx" | "dept" }[] = [
     { label: "Combined", href: "/intelligence" },
     { label: "UAE", href: "/intelligence?entity=UAE" },
     { label: "India", href: "/intelligence?entity=INDIA" },
+    // Sits alongside the entity views rather than inside one: a department
+    // spans both, so it isn't a child of either.
+    { label: "Departments", href: "/intelligence/departments", icon: "dept" },
     { label: "Exchange Rate", href: "/intelligence/fx", icon: "fx" },
   ];
 
