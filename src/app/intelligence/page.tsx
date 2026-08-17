@@ -6,7 +6,6 @@ import {
   Clock,
   HandCoins,
   PieChart,
-  Scale,
   TrendingDown,
   TrendingUp,
   Timer,
@@ -134,31 +133,78 @@ export default async function IntelligencePage({
           </Card>
         ) : (
           <>
-            <HeroMetric
-              label="Combined Net Position"
-              value={formatMoney(c.netPosition, currency)}
-              caption={`Inflow received minus outflow paid, reported in ${currency}`}
-              icon={Scale}
-              delta={prev.available ? { percentChange: pct(c.netPosition, prev.netPosition), upIsGood: true } : undefined}
-              comparisonLabel={comparisonLabel}
-              stats={[
-                { label: "Inflow received", value: formatMoney(c.totalInflow, currency) },
-                { label: "Outflow paid", value: formatMoney(c.outflowPaid, currency) },
-              ]}
-            />
+            {/* Revenue and Expense side by side, replacing the single Net
+                Position hero — Net Position was just their difference, and a
+                subtraction the reader can do at a glance isn't worth losing
+                the ability to click into either half separately. Both drill
+                into the same per-entity breakdown the rest of this page uses. */}
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+              <HeroMetric
+                label="Revenue"
+                value={formatMoney(c.totalInflow, currency)}
+                caption={`Received from clients, reported in ${currency}`}
+                icon={ArrowDownToLine}
+                delta={prev.available ? { percentChange: pct(c.totalInflow, prev.totalInflow), upIsGood: true } : undefined}
+                comparisonLabel={comparisonLabel}
+                href={breakdownHref("totalInflow")}
+              />
+              <HeroMetric
+                label="Expense"
+                value={formatMoney(c.outflowPaid, currency)}
+                caption={`Paid out, reported in ${currency}`}
+                icon={ArrowUpFromLine}
+                delta={prev.available ? { percentChange: pct(c.outflowPaid, prev.outflowPaid), upIsGood: false } : undefined}
+                comparisonLabel={comparisonLabel}
+                href={breakdownHref("outflowPaid")}
+              />
+            </div>
 
             <CombinedConversionSummary result={combined} currency={currency} />
 
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {/* Same Inflow / Outflow grouping as the UAE and India dashboards,
+                so the vocabulary doesn't change when switching views. Booked
+                Revenue is new here: the total invoiced this period, whether
+                collected yet or not — without it, Outflow's Due/Paid/Pending
+                had no inflow-side equivalent to show what was originally
+                billed before any of it arrived as cash. */}
+            <SectionHeader title="Inflow" subtitle={`Client deals and money received ${rangeLabel}`} />
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
               <KpiCard
-                label="Total Inflow Received"
-                value={formatMoney(c.totalInflow, currency)}
+                label="Booked Revenue"
+                value={formatMoney(c.totalDealValue, currency)}
                 icon={ArrowDownToLine}
+                sublabel="Invoiced this period, collected or not"
+                href={breakdownHref("totalDealValue")}
+              />
+              <KpiCard
+                label="Received"
+                value={formatMoney(c.totalInflow, currency)}
+                icon={CheckCircle2}
                 tone="success"
                 delta={prev.available ? { percentChange: pct(c.totalInflow, prev.totalInflow), upIsGood: true } : undefined}
                 comparisonLabel={comparisonLabel}
                 href={breakdownHref("totalInflow")}
               />
+              <KpiCard
+                label="Receivables"
+                value={formatMoney(c.receivables, currency)}
+                sublabel="Still owed by clients"
+                icon={HandCoins}
+                tone="warning"
+                href={breakdownHref("receivables")}
+              />
+              <KpiCard
+                label="Clients Closed"
+                value={String(c.clientsClosed)}
+                icon={Users}
+                tone="brand"
+                sublabel="Deals recorded this period"
+                href={breakdownHref("clientsClosed")}
+              />
+            </div>
+
+            <SectionHeader title="Outflow" subtitle={`Expenses due and settled ${rangeLabel}`} />
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
               <KpiCard
                 label="Total Outflow Due"
                 value={formatMoney(c.totalOutflowDue, currency)}
@@ -197,22 +243,6 @@ export default async function IntelligencePage({
                 delta={prev.available ? { percentChange: pct(c.salaryPaid, prev.salaryPaid), upIsGood: false } : undefined}
                 comparisonLabel={comparisonLabel}
                 href={breakdownHref("salaryPaid")}
-              />
-              <KpiCard
-                label="Receivables"
-                value={formatMoney(c.receivables, currency)}
-                sublabel="Still owed by clients"
-                icon={HandCoins}
-                tone="warning"
-                href={breakdownHref("receivables")}
-              />
-              <KpiCard
-                label="Clients Closed"
-                value={String(c.clientsClosed)}
-                icon={Users}
-                tone="brand"
-                sublabel="Deals recorded this period"
-                href={breakdownHref("clientsClosed")}
               />
             </div>
 
@@ -273,6 +303,7 @@ export default async function IntelligencePage({
                   <tbody className="divide-y divide-border-subtle">
                     {(
                       [
+                        ["Booked Revenue", "totalDealValue"],
                         ["Inflow", "totalInflow"],
                         ["Outflow Due", "totalOutflowDue"],
                         ["Paid", "outflowPaid"],
@@ -387,7 +418,6 @@ export default async function IntelligencePage({
     formattedValue: `${s.items} item${s.items === 1 ? "" : "s"}`,
   }));
 
-  const netTrend = monthly.slice(-6).map((m) => m.netPosition.toNumber());
   const inflowTrend = monthly.slice(-6).map((m) => m.totalInflow.toNumber());
   const outflowTrend = monthly.slice(-6).map((m) => m.outflowPaid.toNumber());
   const pendingTrend = monthly.slice(-6).map((m) => m.outflowPending.toNumber());
@@ -400,31 +430,88 @@ export default async function IntelligencePage({
         controls={<IntelligenceFilters entity={entity} currency={currency} selection={selection} showCurrency={false} />}
       />
 
-      <HeroMetric
-        label="Net Position"
-        value={formatMoney(overview.netPosition, currency)}
-        caption="Inflow received minus outflow paid"
-        icon={Scale}
-        delta={{ percentChange: pct(overview.netPosition, previousOverview.netPosition), upIsGood: true }}
-        comparisonLabel={comparisonLabel}
-        trend={netTrend}
-        stats={[
-          { label: "Inflow received", value: formatMoney(overview.totalInflowReceived, currency) },
-          { label: "Outflow paid", value: formatMoney(overview.outflowPaid, currency) },
-        ]}
-      />
+      {/* Revenue and Expense side by side, replacing the single Net Position
+          hero — Net Position was just their difference, and a subtraction
+          the reader can do at a glance isn't worth losing the ability to
+          click into either half. Each links straight to its records. */}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <HeroMetric
+          label="Revenue"
+          value={formatMoney(overview.totalInflowReceived, currency)}
+          caption="Received from clients"
+          icon={ArrowDownToLine}
+          delta={{ percentChange: pct(overview.totalInflowReceived, previousOverview.totalInflowReceived), upIsGood: true }}
+          comparisonLabel={comparisonLabel}
+          trend={inflowTrend}
+          href={opsHref(`/operations/${slug}/inflow/all`)}
+        />
+        <HeroMetric
+          label="Expense"
+          value={formatMoney(overview.outflowPaid, currency)}
+          caption="Paid out"
+          icon={ArrowUpFromLine}
+          delta={{ percentChange: pct(overview.outflowPaid, previousOverview.outflowPaid), upIsGood: false }}
+          comparisonLabel={comparisonLabel}
+          trend={outflowTrend}
+          href={opsHref(`/operations/${slug}/outflow/all?status=PAID`)}
+        />
+      </div>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+      {/* Inflow side first, outflow side second — the original grid mixed
+          the two freely, which made a page that's already long harder to
+          scan. Receivables' amount and its open-deal count used to be two
+          separate tiles linking to the identical filtered list; merged into
+          one, since a count and an amount for the same thing aren't two
+          findings. Booked Revenue is new: what was invoiced this period,
+          whether collected yet or not — without it, Outflow's Due/Paid/
+          Pending had no inflow-side equivalent showing what was originally
+          billed before any of it arrived as cash. */}
+      <SectionHeader title="Inflow" subtitle={`Client deals and money received ${rangeLabel}`} />
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <KpiCard
+          label="Booked Revenue"
+          value={formatMoney(inflowSummary.totalDealValue, currency)}
+          icon={ArrowDownToLine}
+          sublabel="Invoiced this period, collected or not"
+          href={opsHref(`/operations/${slug}/inflow/all`)}
+        />
         <KpiCard
           label="Total Inflow (Received)"
           value={formatMoney(overview.totalInflowReceived, currency)}
-          icon={ArrowDownToLine}
+          icon={CheckCircle2}
           tone="success"
           trend={inflowTrend}
           delta={{ percentChange: pct(overview.totalInflowReceived, previousOverview.totalInflowReceived), upIsGood: true }}
           comparisonLabel={comparisonLabel}
           href={opsHref(`/operations/${slug}/inflow/all`)}
         />
+        <KpiCard
+          label="Receivables"
+          value={formatMoney(overview.receivables, currency)}
+          sublabel={`Still owed by clients · ${receivables.rows.length} open deal${receivables.rows.length === 1 ? "" : "s"}`}
+          icon={HandCoins}
+          tone="warning"
+          href={opsHref(`/operations/${slug}/inflow/all?status=unpaid`)}
+        />
+        <KpiCard
+          label="Clients Closed"
+          value={String(overview.clientsClosed)}
+          icon={Users}
+          tone="brand"
+          delta={{
+            percentChange:
+              previousOverview.clientsClosed === 0
+                ? null
+                : (overview.clientsClosed - previousOverview.clientsClosed) / previousOverview.clientsClosed,
+            upIsGood: true,
+          }}
+          comparisonLabel={comparisonLabel}
+          href={opsHref(`/operations/${slug}/clients`)}
+        />
+      </div>
+
+      <SectionHeader title="Outflow" subtitle={`Expenses due and settled ${rangeLabel}`} />
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <KpiCard
           label="Total Outflow (Due)"
           value={formatMoney(overview.totalOutflowDue, currency)}
@@ -434,6 +521,14 @@ export default async function IntelligencePage({
           delta={{ percentChange: pct(overview.totalOutflowDue, previousOverview.totalOutflowDue), upIsGood: false }}
           comparisonLabel={comparisonLabel}
           href={opsHref(`/operations/${slug}/outflow/all`)}
+        />
+        <KpiCard
+          label="Outflow Paid"
+          value={formatMoney(overview.outflowPaid, currency)}
+          icon={PieChart}
+          tone="success"
+          trend={outflowTrend}
+          href={opsHref(`/operations/${slug}/outflow/all?status=PAID`)}
         />
         <KpiCard
           label="Liabilities"
@@ -455,49 +550,12 @@ export default async function IntelligencePage({
           sublabel={`${formatMoney(overview.outflowPaid, currency)} settled`}
           href={opsHref(`/operations/${slug}/outflow/all?status=PAID`)}
         />
-        <KpiCard
-          label="Receivables"
-          value={formatMoney(overview.receivables, currency)}
-          sublabel="Still owed by clients"
-          icon={HandCoins}
-          tone="warning"
-          href={opsHref(`/operations/${slug}/inflow/all?status=unpaid`)}
-        />
-        <KpiCard
-          label="Clients Closed"
-          value={String(overview.clientsClosed)}
-          icon={Users}
-          tone="brand"
-          delta={{
-            percentChange:
-              previousOverview.clientsClosed === 0
-                ? null
-                : (overview.clientsClosed - previousOverview.clientsClosed) / previousOverview.clientsClosed,
-            upIsGood: true,
-          }}
-          comparisonLabel={comparisonLabel}
-          href={opsHref(`/operations/${slug}/clients`)}
-        />
-        <KpiCard
-          label="Outflow Paid"
-          value={formatMoney(overview.outflowPaid, currency)}
-          icon={PieChart}
-          tone="success"
-          trend={outflowTrend}
-          href={opsHref(`/operations/${slug}/outflow/all?status=PAID`)}
-        />
-        <KpiCard
-          label="Open Receivables"
-          value={String(receivables.rows.length)}
-          sublabel="Deals not fully collected"
-          icon={HandCoins}
-          href={opsHref(`/operations/${slug}/inflow/all?status=unpaid`)}
-        />
       </div>
 
       {/* Each of these drills into its own page rather than a filtered list:
           the number behind them is a calculation, not a set of rows, so
           "show me the records" would not actually explain it. */}
+      <SectionHeader title="Profitability" subtitle={`Cash basis, so these tie to Net Position above ${rangeLabel}`} />
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <KpiCard
           label="Salary"
@@ -538,11 +596,17 @@ export default async function IntelligencePage({
 
       {/* Ageing sits high on the page and ignores the period filter — overdue
           money is the thing you most need to see, and hiding it because the
-          user is looking at "This Month" would defeat the point. */}
+          user is looking at "This Month" would defeat the point. The
+          period-scoped receivables table used to sit six sections lower,
+          under an identically-worded "Receivables" heading — two lists
+          answering different questions ("who's overdue, all time" vs
+          "what's still open this period"), unexplained and far apart. Moved
+          next to each other and relabelled so the difference is obvious. */}
+      <SectionHeader title="Receivables & Payables" subtitle="Who owes us, who we owe, and how overdue it is" />
       <div className="grid gap-4 lg:grid-cols-2">
         <AlertsPanel
           title="Receivables Ageing"
-          description="Money owed to us by clients, by age"
+          description="Money owed to us by clients, by age — all time, not just this period"
           ageing={alerts.receivablesAgeing}
           overdueTotal={alerts.receivablesOverdue}
           items={alerts.topOverdueReceivables}
@@ -551,7 +615,7 @@ export default async function IntelligencePage({
         />
         <AlertsPanel
           title="Payables Ageing"
-          description="Expenses we still owe, by age"
+          description="Expenses we still owe, by age — all time, not just this period"
           ageing={alerts.payablesAgeing}
           overdueTotal={alerts.payablesOverdue}
           items={alerts.topOverduePayables}
@@ -560,6 +624,46 @@ export default async function IntelligencePage({
         />
       </div>
 
+      <Card>
+        <CardHeader>
+          <CardTitle>Open Receivables This Period</CardTitle>
+          <CardDescription>Deals from {rangeLabel} that aren&rsquo;t fully collected yet</CardDescription>
+        </CardHeader>
+        <CardContent className="overflow-x-auto">
+          {receivables.rows.length === 0 ? (
+            <EmptyState title="No open receivables" description="Every client balance for this period has been fully collected." />
+          ) : (
+            <table className="w-full min-w-[560px] text-table">
+              <thead className="text-left text-xs uppercase tracking-wide text-muted-foreground">
+                <tr>
+                  <th className="py-2 font-medium">Client</th>
+                  <th className="py-2 font-medium">Service / Project</th>
+                  <th className="py-2 text-right font-medium">Deal Value</th>
+                  <th className="py-2 text-right font-medium">Received</th>
+                  <th className="py-2 text-right font-medium">Balance Due</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border-subtle">
+                {receivables.rows.slice(0, 10).map((r) => (
+                  <tr key={r.transactionId} className="hover:bg-accent/40">
+                    <td className="py-2">
+                      <Link href={`/operations/transactions/${r.transactionId}`} className="transition-ui hover:underline">
+                        {r.clientName}
+                      </Link>
+                    </td>
+                    <td className="py-2 text-muted-foreground">{r.description}</td>
+                    <td className="py-2 text-right">{formatMoney(r.dealValue, currency)}</td>
+                    <td className="py-2 text-right">{formatMoney(r.received, currency)}</td>
+                    <td className="py-2 text-right font-medium">{formatMoney(r.balanceDue, currency)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </CardContent>
+      </Card>
+
+      <SectionHeader title="Trends" />
       <Card>
         <CardHeader>
           <CardTitle>Cash Flow Trend</CardTitle>
@@ -674,13 +778,15 @@ export default async function IntelligencePage({
         </Card>
       </div>
 
-      {/* Mirrors the workbook Dashboard's INFLOW SUMMARY block, which the
-          earlier UI pass never surfaced even though getInflowSummary already
-          computed every one of these figures. */}
+      <SectionHeader title="Details" />
+      {/* Deal value, received and receivable used to repeat here — they're
+          the Booked Revenue / Total Inflow / Receivables tiles above,
+          restated. Trimmed to the five figures that live nowhere else on
+          the page. */}
       <Card>
         <CardHeader>
-          <CardTitle>Inflow Summary</CardTitle>
-          <CardDescription>Client deals closed and collection performance {rangeLabel}</CardDescription>
+          <CardTitle>Client Deal Mix</CardTitle>
+          <CardDescription>How this period&rsquo;s closed deals break down {rangeLabel}</CardDescription>
         </CardHeader>
         <CardContent>
           {inflowSummary.clientsClosed === 0 ? (
@@ -691,18 +797,15 @@ export default async function IntelligencePage({
               actionHref={`/operations/${slug}/inflow/new`}
             />
           ) : (
-            <div className="grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-4">
-              <SummaryStat label="Total deal value closed" value={formatMoney(inflowSummary.totalDealValue, currency)} />
-              <SummaryStat label="Total amount received" value={formatMoney(inflowSummary.totalReceived, currency)} tone="success" />
-              <SummaryStat label="Balance receivable" value={formatMoney(inflowSummary.balanceReceivable, currency)} tone="warning" />
-              <SummaryStat label="Collection rate" value={formatPercent(inflowSummary.collectionRate)} />
+            <div className="grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-5">
+              <SummaryStat label="Total clients closed" value={String(inflowSummary.clientsClosed)} />
               <SummaryStat label="New clients closed" value={String(inflowSummary.newClientsClosed)} />
               <SummaryStat
                 label="Renewals / upsells / existing"
                 value={String(inflowSummary.existingOrRepeatClientsClosed)}
               />
               <SummaryStat label="Average deal size" value={formatMoney(inflowSummary.averageDealSize, currency)} />
-              <SummaryStat label="Total clients closed" value={String(inflowSummary.clientsClosed)} />
+              <SummaryStat label="Collection rate" value={formatPercent(inflowSummary.collectionRate)} />
             </div>
           )}
         </CardContent>
@@ -761,45 +864,6 @@ export default async function IntelligencePage({
         </CardContent>
       </Card>
 
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Receivables</CardTitle>
-        </CardHeader>
-        <CardContent className="overflow-x-auto">
-          {receivables.rows.length === 0 ? (
-            <EmptyState title="No open receivables" description="Every client balance for this period has been fully collected." />
-          ) : (
-            <table className="w-full min-w-[560px] text-table">
-              <thead className="text-left text-xs uppercase tracking-wide text-muted-foreground">
-                <tr>
-                  <th className="py-2 font-medium">Client</th>
-                  <th className="py-2 font-medium">Service / Project</th>
-                  <th className="py-2 text-right font-medium">Deal Value</th>
-                  <th className="py-2 text-right font-medium">Received</th>
-                  <th className="py-2 text-right font-medium">Balance Due</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border-subtle">
-                {receivables.rows.slice(0, 10).map((r) => (
-                  <tr key={r.transactionId} className="hover:bg-accent/40">
-                    <td className="py-2">
-                      <Link href={`/operations/transactions/${r.transactionId}`} className="transition-ui hover:underline">
-                        {r.clientName}
-                      </Link>
-                    </td>
-                    <td className="py-2 text-muted-foreground">{r.description}</td>
-                    <td className="py-2 text-right">{formatMoney(r.dealValue, currency)}</td>
-                    <td className="py-2 text-right">{formatMoney(r.received, currency)}</td>
-                    <td className="py-2 text-right font-medium">{formatMoney(r.balanceDue, currency)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </CardContent>
-      </Card>
-
       <div className="flex gap-4 text-label font-medium">
         <Link href={`/operations/${slug}/inflow/all`} className="text-brand transition-ui hover:underline">
           View all Inflow →
@@ -847,6 +911,22 @@ function PageHeader({ title, subtitle, controls }: { title: string; subtitle: st
         <p className="mt-0.5 text-page-subtitle">{subtitle}</p>
       </div>
       {controls}
+    </div>
+  );
+}
+
+/**
+ * Breaks a long dashboard into named zones. The entity Finance View is
+ * eleven sections deep once ageing, trends and summaries are all on it — a
+ * wall of identical-looking cards with nothing marking where one topic ends
+ * and the next begins. A small heading costs one line and turns "endless
+ * scroll" into "find the Outflow section."
+ */
+function SectionHeader({ title, subtitle }: { title: string; subtitle?: string }) {
+  return (
+    <div className="pt-2">
+      <h2 className="text-section-title">{title}</h2>
+      {subtitle && <p className="mt-0.5 text-metadata">{subtitle}</p>}
     </div>
   );
 }

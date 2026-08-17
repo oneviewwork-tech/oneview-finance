@@ -8,6 +8,10 @@ const { Decimal } = Prisma;
 
 export interface ConvertedFigures {
   available: boolean;
+  /** What was actually booked/invoiced this period, net of tax — the accrual
+   *  figure. totalInflow (below) is what's been collected of it; the gap
+   *  between the two is receivables. */
+  totalDealValue: Prisma.Decimal;
   totalInflow: Prisma.Decimal;
   totalOutflowDue: Prisma.Decimal;
   outflowPaid: Prisma.Decimal;
@@ -34,6 +38,7 @@ export interface CombinedSummaryResult {
 }
 
 const MONEY_FIELDS = [
+  "totalDealValue",
   "totalInflow",
   "totalOutflowDue",
   "outflowPaid",
@@ -63,6 +68,7 @@ export async function getCombinedSummary(reportingCurrency: Currency, range: Dat
           native,
           converted: {
             available: true,
+            totalDealValue: native.totalDealValue,
             totalInflow: native.totalInflow,
             totalOutflowDue: native.totalOutflowDue,
             outflowPaid: native.outflowPaid,
@@ -77,9 +83,9 @@ export async function getCombinedSummary(reportingCurrency: Currency, range: Dat
         };
       }
 
-      // One rate lookup covers all 5 money fields — MONEY_FIELDS previously
+      // One rate lookup covers all money fields — MONEY_FIELDS previously
       // called convertAmount() (and therefore re-queried the same rate) once
-      // per field, firing 5 identical DB round trips for a single entity.
+      // per field, firing repeated identical DB round trips for a single entity.
       const resolved = await getRateForDate(nativeCurrency, reportingCurrency, asOfDate);
 
       if (!resolved) {
@@ -87,6 +93,7 @@ export async function getCombinedSummary(reportingCurrency: Currency, range: Dat
           native,
           converted: {
             available: false,
+            totalDealValue: new Decimal(0),
             totalInflow: new Decimal(0),
             totalOutflowDue: new Decimal(0),
             outflowPaid: new Decimal(0),
@@ -98,14 +105,14 @@ export async function getCombinedSummary(reportingCurrency: Currency, range: Dat
         };
       }
 
-      const [totalInflow, totalOutflowDue, outflowPaid, outflowPending, receivables, salaryPaid] = MONEY_FIELDS.map(
-        (field) => native[field].mul(resolved.rate)
-      );
+      const [totalDealValue, totalInflow, totalOutflowDue, outflowPaid, outflowPending, receivables, salaryPaid] =
+        MONEY_FIELDS.map((field) => native[field].mul(resolved.rate));
 
       return {
         native,
         converted: {
           available: true,
+          totalDealValue,
           totalInflow,
           totalOutflowDue,
           outflowPaid,
@@ -129,6 +136,7 @@ export async function getCombinedSummary(reportingCurrency: Currency, range: Dat
   const combined = rows.reduce(
     (acc, r) => ({
       available: true as const,
+      totalDealValue: acc.totalDealValue.plus(r.converted.totalDealValue),
       totalInflow: acc.totalInflow.plus(r.converted.totalInflow),
       salaryPaid: acc.salaryPaid.plus(r.converted.salaryPaid),
       totalOutflowDue: acc.totalOutflowDue.plus(r.converted.totalOutflowDue),
@@ -140,6 +148,7 @@ export async function getCombinedSummary(reportingCurrency: Currency, range: Dat
     }),
     {
       available: true as const,
+      totalDealValue: new Decimal(0),
       totalInflow: new Decimal(0),
       salaryPaid: new Decimal(0),
       totalOutflowDue: new Decimal(0),

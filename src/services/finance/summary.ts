@@ -482,6 +482,9 @@ export interface EntitySummaryRow {
   entityCode: string;
   entityName: string;
   currency: string;
+  /** What was booked/invoiced this period, net of tax — the accrual figure
+   *  totalInflow (received) is the collected portion of. */
+  totalDealValue: Prisma.Decimal;
   totalInflow: Prisma.Decimal;
   totalOutflowDue: Prisma.Decimal;
   outflowPaid: Prisma.Decimal;
@@ -510,6 +513,7 @@ export async function getEntitySummary(range?: DateRange): Promise<EntitySummary
         entityCode: entity.code,
         entityName: entity.name,
         currency: entity.baseCurrency,
+        totalDealValue: inflow.totalDealValue,
         totalInflow: inflow.totalReceived,
         totalOutflowDue: outflow.totalDue,
         outflowPaid: outflow.totalPaid,

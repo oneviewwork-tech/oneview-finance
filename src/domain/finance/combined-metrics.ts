@@ -15,6 +15,7 @@
  */
 export type MoneyMetricKey =
   | "salaryPaid"
+  | "totalDealValue"
   | "totalInflow"
   | "totalOutflowDue"
   | "outflowPaid"
@@ -39,6 +40,13 @@ export interface CombinedMetricSpec {
 }
 
 export const COMBINED_METRICS: Record<CombinedMetricKey, CombinedMetricSpec> = {
+  totalDealValue: {
+    key: "totalDealValue",
+    label: "Booked Revenue",
+    description: "What was invoiced to clients this period, whether collected yet or not, by entity.",
+    isMoney: true,
+    recordsPath: (slug) => `/operations/${slug}/inflow/all`,
+  },
   totalInflow: {
     key: "totalInflow",
     label: "Total Inflow Received",
