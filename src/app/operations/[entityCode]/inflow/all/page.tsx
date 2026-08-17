@@ -2,37 +2,54 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { requireEntityBySlug } from "@/lib/entities";
 import { calculateCollectedFraction } from "@/domain/finance/calculations";
-import { parseStatusFilter, statusWhereClause, describeStatusFilter } from "@/domain/finance/transaction-filter";
+import {
+  statusWhereClause,
+  parseRecordFilters,
+  hasAnyFilter,
+  describeRecordFilters,
+} from "@/domain/finance/transaction-filter";
 import { Button } from "@/components/ui/button";
 import { ExportMenu } from "@/components/finance/export-menu";
 import { ActiveFilterChip } from "@/components/finance/active-filter-chip";
 import { InflowTable } from "../inflow-table";
 
+/**
+ * Every inflow row, across all months.
+ *
+ * Also where a Department View row lands when clicked: department detail
+ * shows Revenue, Received, Outstanding for each region, and each of those
+ * is a filtered view of these same rows, not a separately-computed number.
+ */
 export default async function InflowAllRecordsPage({
   params,
   searchParams,
 }: {
   params: Promise<{ entityCode: string }>;
-  searchParams: Promise<{ status?: string }>;
+  searchParams: Promise<{ status?: string; department?: string }>;
 }) {
   const { entityCode } = await params;
-  const { status } = await searchParams;
+  const query = await searchParams;
   const entity = await requireEntityBySlug(entityCode);
 
-  // Lets a dashboard tile deep-link into the rows behind its number.
-  const filter = parseStatusFilter(status);
-  const statusClause = statusWhereClause(filter);
+  const filters = parseRecordFilters(query);
+  const statusClause = statusWhereClause(filters.status);
 
   const transactions = await prisma.financialTransaction.findMany({
     where: {
       entityId: entity.id,
       transactionType: "INFLOW",
       ...(statusClause ? { status: statusClause } : {}),
+      ...(filters.departmentId ? { departmentId: filters.departmentId } : {}),
+      ...(filters.untaggedDepartment ? { departmentId: null } : {}),
     },
     include: { client: true },
     orderBy: { transactionDate: "desc" },
     take: 200,
   });
+
+  const department = filters.departmentId
+    ? await prisma.department.findUnique({ where: { id: filters.departmentId }, select: { name: true } })
+    : null;
 
   const rows = transactions.map((txn) => ({
     id: txn.id,
@@ -63,10 +80,10 @@ export default async function InflowAllRecordsPage({
         </div>
       </div>
 
-      {filter && (
-        <div className="mt-3">
+      {hasAnyFilter(filters) && (
+        <div className="mt-3 flex flex-wrap items-center gap-2">
           <ActiveFilterChip
-            label={describeStatusFilter(filter)}
+            label={describeRecordFilters(filters, department?.name).join(" · ")}
             clearHref={`/operations/${entityCode}/inflow/all`}
           />
         </div>

@@ -1,11 +1,13 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, Info } from "lucide-react";
+import { ArrowLeft, ArrowRight, Info } from "lucide-react";
 import type { Currency } from "@prisma/client";
-import { requireUser, canViewIntelligenceEntity } from "@/lib/rbac";
+import { requireUser, canViewIntelligenceEntity, canAccessOperations } from "@/lib/rbac";
 import { formatMoney } from "@/lib/format";
+import { entitySlug } from "@/lib/entities";
 import { cn } from "@/lib/utils";
 import { parseRangeSelection, resolveSelection, describeSelectionLong } from "@/domain/finance/date-range";
+import { SALARY_CATEGORY_NAMES } from "@/domain/finance/profitability";
 import {
   getDepartmentRegional,
   type DepartmentRegionFigures,
@@ -35,6 +37,7 @@ export default async function DepartmentDetailPage({
   const query = await searchParams;
   const user = await requireUser();
   if (!canViewIntelligenceEntity(user.role, "ALL")) notFound();
+  const showOpsLinks = canAccessOperations(user.role);
 
   const currency: Currency = query.currency === "AED" ? "AED" : "INR";
   const selection = parseRangeSelection(query);
@@ -75,15 +78,35 @@ export default async function DepartmentDetailPage({
           </CardDescription>
         </CardHeader>
         <CardContent className="overflow-x-auto">
+          {/* Other expenses and Net have no href: there's no filter that
+              accurately picks out "not salary" or "the rows behind a
+              subtraction" — a link that quietly included the wrong rows
+              would misrepresent the number worse than no link at all. */}
           <RegionTable
             regions={result.regions}
             currency={currency}
             total={total}
+            showOpsLinks={showOpsLinks}
             rows={[
-              { key: "revenue", label: "Revenue", tone: "success" },
-              { key: "salary", label: "Salary" },
+              {
+                key: "revenue",
+                label: "Revenue",
+                tone: "success",
+                recordsHref: (slug) => `/operations/${slug}/inflow/all?department=${departmentId}`,
+              },
+              {
+                key: "salary",
+                label: "Salary",
+                recordsHref: (slug) =>
+                  `/operations/${slug}/outflow/all?department=${departmentId}&category=${encodeURIComponent(SALARY_CATEGORY_NAMES.join(","))}`,
+              },
               { key: "otherExpenses", label: "Other expenses" },
-              { key: "spent", label: "Total spent", strong: true },
+              {
+                key: "spent",
+                label: "Total spent",
+                strong: true,
+                recordsHref: (slug) => `/operations/${slug}/outflow/all?department=${departmentId}`,
+              },
               { key: "net", label: "Net", strong: true, signed: true },
             ]}
           />
@@ -102,10 +125,26 @@ export default async function DepartmentDetailPage({
             regions={result.regions}
             currency={currency}
             total={total}
+            showOpsLinks={showOpsLinks}
             rows={[
-              { key: "revenue", label: "Revenue billed" },
-              { key: "received", label: "Received", tone: "success" },
-              { key: "outstanding", label: "Outstanding", tone: "destructive", strong: true },
+              {
+                key: "revenue",
+                label: "Revenue billed",
+                recordsHref: (slug) => `/operations/${slug}/inflow/all?department=${departmentId}`,
+              },
+              {
+                key: "received",
+                label: "Received",
+                tone: "success",
+                recordsHref: (slug) => `/operations/${slug}/inflow/all?department=${departmentId}&status=PAID`,
+              },
+              {
+                key: "outstanding",
+                label: "Outstanding",
+                tone: "destructive",
+                strong: true,
+                recordsHref: (slug) => `/operations/${slug}/inflow/all?department=${departmentId}&status=unpaid`,
+              },
             ]}
             footerLabel="Collected"
             footer={result.regions.map((r) =>
@@ -157,6 +196,9 @@ interface RowSpec {
   strong?: boolean;
   /** Colour by sign rather than a fixed tone. */
   signed?: boolean;
+  /** Omitted where no filter can accurately express what makes up the
+   *  number (see "Other expenses" and "Net" above). */
+  recordsHref?: (entitySlug: string) => string;
 }
 
 function RegionTable({
@@ -167,6 +209,7 @@ function RegionTable({
   footer,
   footerLabel,
   footerTotal,
+  showOpsLinks,
 }: {
   regions: DepartmentRegionFigures[];
   currency: Currency;
@@ -175,6 +218,7 @@ function RegionTable({
   footer?: string[];
   footerLabel?: string;
   footerTotal?: string;
+  showOpsLinks: boolean;
 }) {
   return (
     <table className="w-full min-w-[520px] text-table">
@@ -192,25 +236,42 @@ function RegionTable({
       </thead>
       <tbody className="divide-y divide-border-subtle">
         {rows.map((row) => (
-          <tr key={row.key + row.label} className="hover:bg-accent/40">
-            <td className={cn("py-2.5", row.strong && "font-medium")}>{row.label}</td>
+          <tr key={row.key + row.label} className="group/row hover:bg-accent/40">
+            <td className={cn("py-2.5", row.strong && "font-medium")}>
+              <span className="inline-flex items-center gap-1">
+                {row.label}
+                {/* Shown on row hover rather than always-on — a whole table
+                    of arrows reads as noise before you've hovered anything. */}
+                {row.recordsHref && showOpsLinks && (
+                  <ArrowRight className="h-3 w-3 text-muted-foreground/0 transition-colors group-hover/row:text-muted-foreground/50" />
+                )}
+              </span>
+            </td>
             {regions.map((r) => {
               const v = r[row.key];
+              const valueClass = cn(
+                "tabular-nums",
+                row.strong && "font-medium",
+                row.signed ? (v.gte(0) ? "text-success" : "text-destructive") : toneClass(row.tone)
+              );
+              const href = row.recordsHref && showOpsLinks ? row.recordsHref(entitySlug(r.entityCode)) : null;
               return (
-                <td
-                  key={r.entityCode}
-                  className={cn(
-                    "py-2.5 text-right tabular-nums",
-                    row.strong && "font-medium",
-                    row.signed ? (v.gte(0) ? "text-success" : "text-destructive") : toneClass(row.tone)
-                  )}
-                >
+                <td key={r.entityCode} className="py-2.5 text-right">
                   {/* Each region in its OWN currency — converting here would
                       hide which book the figure came from. */}
-                  {formatMoney(v, r.currency)}
+                  {href ? (
+                    <Link href={href} className={cn(valueClass, "transition-ui hover:underline")}>
+                      {formatMoney(v, r.currency)}
+                    </Link>
+                  ) : (
+                    <span className={valueClass}>{formatMoney(v, r.currency)}</span>
+                  )}
                 </td>
               );
             })}
+            {/* The Total column stays plain text: it spans both currencies,
+                so there is no single entity's record list it could open —
+                same reasoning the Combined dashboard tiles use. */}
             <td
               className={cn(
                 "py-2.5 text-right tabular-nums",
