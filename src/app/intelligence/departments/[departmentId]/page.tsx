@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, ArrowRight, Info } from "lucide-react";
+import { ArrowLeft, ChevronRight, Info } from "lucide-react";
 import type { Currency } from "@prisma/client";
 import { requireUser, canViewIntelligenceEntity, canAccessOperations } from "@/lib/rbac";
 import { formatMoney } from "@/lib/format";
@@ -236,17 +236,14 @@ function RegionTable({
       </thead>
       <tbody className="divide-y divide-border-subtle">
         {rows.map((row) => (
-          <tr key={row.key + row.label} className="group/row hover:bg-accent/40">
-            <td className={cn("py-2.5", row.strong && "font-medium")}>
-              <span className="inline-flex items-center gap-1">
-                {row.label}
-                {/* Shown on row hover rather than always-on — a whole table
-                    of arrows reads as noise before you've hovered anything. */}
-                {row.recordsHref && showOpsLinks && (
-                  <ArrowRight className="h-3 w-3 text-muted-foreground/0 transition-colors group-hover/row:text-muted-foreground/50" />
-                )}
-              </span>
-            </td>
+          <tr key={row.key + row.label} className="hover:bg-accent/40">
+            {/* Plain text — this cell was previously decorated with an arrow
+                implying IT was clickable, while the actual links sit in the
+                region columns to the right. Someone tapping the label
+                (exactly where the arrow pointed) got nothing. The label
+                can't be a single link anyway: each region points at a
+                different entity's records. */}
+            <td className={cn("py-2.5", row.strong && "font-medium")}>{row.label}</td>
             {regions.map((r) => {
               const v = r[row.key];
               const valueClass = cn(
@@ -258,10 +255,16 @@ function RegionTable({
               return (
                 <td key={r.entityCode} className="py-2.5 text-right">
                   {/* Each region in its OWN currency — converting here would
-                      hide which book the figure came from. */}
+                      hide which book the figure came from. The chevron sits
+                      on the cell that's actually clickable, not on the row
+                      label, so the hint and the target are the same element. */}
                   {href ? (
-                    <Link href={href} className={cn(valueClass, "transition-ui hover:underline")}>
+                    <Link
+                      href={href}
+                      className={cn(valueClass, "group/cell inline-flex items-center gap-1 transition-ui hover:underline")}
+                    >
                       {formatMoney(v, r.currency)}
+                      <ChevronRight className="h-3 w-3 shrink-0 text-muted-foreground/50 transition-transform group-hover/cell:translate-x-0.5" />
                     </Link>
                   ) : (
                     <span className={valueClass}>{formatMoney(v, r.currency)}</span>
