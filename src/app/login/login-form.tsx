@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useState } from "react";
+import Link from "next/link";
 import { Eye, EyeOff, Lock, Mail, AlertCircle } from "lucide-react";
 import { authenticate } from "./actions";
 
@@ -67,6 +68,11 @@ export function LoginForm() {
             Caps Lock is on
           </p>
         )}
+        <div className="mt-2 text-right">
+          <Link href="/forgot-password" className="text-xs text-white/45 transition-colors hover:text-white/80">
+            Forgot password?
+          </Link>
+        </div>
       </div>
 
       {errorMessage && (

@@ -65,6 +65,7 @@ model User {
   exchangeRates       ExchangeRate[]
   sessions            UserSession[]
   passkeyResetTokens  PasskeyResetToken[]
+  passwordResetTokens PasswordResetToken[]
   ledgerMonths        LedgerMonth[]       @relation("LedgerMonthCreatedBy")
 }
 
@@ -100,6 +101,24 @@ model LedgerMonth {
 /// lived (expiresAt), with their own attempt counter so guessing a 6-digit
 /// code is not feasible.
 model PasskeyResetToken {
+  id         String    @id @default(cuid())
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  codeHash   String
+  expiresAt  DateTime
+  consumedAt DateTime?
+  attempts   Int       @default(0)
+  createdAt  DateTime  @default(now())
+
+  @@index([userId, consumedAt])
+}
+
+/// One-time code emailed to reset a forgotten LOGIN password — separate
+/// from PasskeyResetToken because this one is requested by someone who
+/// isn't signed in yet. The request step must not reveal whether the
+/// email address it was given belongs to a real account, so the same
+/// generic response is returned whether or not a token row gets created.
+model PasswordResetToken {
   id         String    @id @default(cuid())
   userId     String
   user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -451,6 +470,9 @@ enum AuditAction {
   PASSKEY_RESET_REQUESTED
   PASSKEY_RESET_COMPLETED
   PASSKEY_CLEARED
+  // Login password reset, requested while signed out.
+  PASSWORD_RESET_REQUESTED
+  PASSWORD_RESET_COMPLETED
 }
 
 // Append-only. actorUserId/actorEmail are deliberately plain fields, not a

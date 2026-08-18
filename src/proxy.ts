@@ -72,7 +72,9 @@ export default auth(async (req) => {
     if (isApiPath(pathname)) {
       return NextResponse.json({ error: "Authentication required" }, { status: 401 });
     }
-    if (pathname !== "/login") {
+    // /forgot-password has to be reachable by definition BEFORE signing in
+    // — that's the whole flow it exists for.
+    if (pathname !== "/login" && pathname !== "/forgot-password") {
       const url = new URL("/login", req.nextUrl);
       url.searchParams.set("callbackUrl", req.nextUrl.pathname + req.nextUrl.search);
       return NextResponse.redirect(url);
@@ -159,6 +161,7 @@ export const config = {
   matcher: [
     "/",
     "/login",
+    "/forgot-password",
     "/change-password",
     "/passkey",
     "/passkey/:path*",

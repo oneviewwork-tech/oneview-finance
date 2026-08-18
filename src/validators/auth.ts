@@ -42,6 +42,24 @@ export const setPasskeySchema = z
     path: ["confirmPasskey"],
   });
 
+// Shown by the forgot-password client after a request, and referenced by
+// password-reset.actions.ts's own comments — kept here, not there, because
+// a "use server" file may only export async functions.
+export const PASSWORD_RESET_GENERIC_MESSAGE =
+  "If an account exists for that email, a reset code has been sent. Check your inbox (and spam folder).";
+
+// Same rule as changePasswordSchema minus the "know your current password"
+// step, since that is precisely what a forgot-password flow can't ask for.
+export const resetPasswordSchema = z
+  .object({
+    newPassword: passwordSchema,
+    confirmPassword: z.string().min(1, "Confirm your new password"),
+  })
+  .refine((data) => data.newPassword === data.confirmPassword, {
+    message: "Passwords do not match",
+    path: ["confirmPassword"],
+  });
+
 export const changePasswordSchema = z
   .object({
     currentPassword: z.string().min(1, "Current password is required"),
