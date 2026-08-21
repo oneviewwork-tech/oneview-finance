@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { LucideIcon } from "lucide-react";
 import { ArrowDownRight, ArrowUpRight, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { formatDeltaPercent } from "@/lib/format";
 import { Sparkline } from "@/components/charts/sparkline";
 import type { KpiDelta } from "./kpi-card";
 
@@ -69,7 +70,7 @@ export function HeroMetric({
           {hasDelta && (
             <span className={cn("inline-flex items-center gap-0.5 text-sm font-medium", deltaColor)}>
               <DeltaIcon className="h-4 w-4" />
-              {Math.abs(deltaValue * 100).toFixed(1)}%
+              {formatDeltaPercent(deltaValue)}
               {comparisonLabel && <span className="ml-1 font-normal text-muted-foreground">vs {comparisonLabel}</span>}
             </span>
           )}

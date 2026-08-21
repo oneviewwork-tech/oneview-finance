@@ -49,6 +49,19 @@ export function formatPercent(fraction: Prisma.Decimal | number): string {
   return new Intl.NumberFormat("en-US", { style: "percent", maximumFractionDigits: 1 }).format(value);
 }
 
+// A trailing comparison window can land on a period whose baseline was
+// nearly nothing, which makes a genuine, correctly-computed swing print as
+// an alarming five-digit percentage — "1556.9%" reads as a rendering bug
+// even though the arithmetic is exact. Capped here, in display only: the
+// underlying percentChange stays exact for anything reading it directly,
+// only the printed string is bounded.
+const DELTA_DISPLAY_CAP = 999;
+
+export function formatDeltaPercent(percentChange: number): string {
+  const pct = Math.abs(percentChange * 100);
+  return pct > DELTA_DISPLAY_CAP ? `>${DELTA_DISPLAY_CAP}%` : `${pct.toFixed(1)}%`;
+}
+
 export function formatDate(date: Date): string {
   return new Intl.DateTimeFormat("en-GB", { day: "2-digit", month: "short", year: "numeric", timeZone: "UTC" }).format(
     date

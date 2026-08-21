@@ -1,5 +1,6 @@
 import { ArrowDown, ArrowUp, Minus } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { formatDeltaPercent } from "@/lib/format";
 
 export interface TrendBadgeProps {
   /** Fractional change, e.g. 0.084 for +8.4%. Pass null/undefined to render nothing — never fabricate a comparison the data doesn't support. */
@@ -27,7 +28,7 @@ export function TrendBadge({ percentChange, upIsGood, className }: TrendBadgePro
       )}
     >
       <Icon className="h-3 w-3" strokeWidth={2.5} />
-      {Math.abs(percentChange * 100).toFixed(1)}%
+      {formatDeltaPercent(percentChange)}
     </span>
   );
 }

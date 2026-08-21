@@ -87,7 +87,10 @@ export default async function IntelligencePage({
   const range = resolveSelection(selection);
   const rangeLabel = describeSelectionLong(selection);
   const previousRange = previousPeriod(range);
-  const comparisonLabel = `vs previous period`;
+  // No "vs " prefix here — both KpiCard and HeroMetric already render their
+  // own "vs " before this string. It had one baked in too, so every tile
+  // with a delta on this page was showing "vs vs previous period".
+  const comparisonLabel = `previous period`;
 
   if (entity === "ALL") {
     const currency: Currency = params.currency === "AED" ? "AED" : "INR";
@@ -173,7 +176,7 @@ export default async function IntelligencePage({
                 label="Booked Revenue"
                 value={formatMoney(c.totalDealValue, currency)}
                 icon={ArrowDownToLine}
-                sublabel="Invoiced this period, collected or not"
+                sublabel="Whether collected yet or not"
                 href={breakdownHref("totalDealValue")}
               />
               <KpiCard
@@ -472,11 +475,11 @@ export default async function IntelligencePage({
           label="Booked Revenue"
           value={formatMoney(inflowSummary.totalDealValue, currency)}
           icon={ArrowDownToLine}
-          sublabel="Invoiced this period, collected or not"
+          sublabel="Whether collected yet or not"
           href={opsHref(`/operations/${slug}/inflow/all`)}
         />
         <KpiCard
-          label="Total Inflow (Received)"
+          label="Received"
           value={formatMoney(overview.totalInflowReceived, currency)}
           icon={CheckCircle2}
           tone="success"
@@ -488,7 +491,7 @@ export default async function IntelligencePage({
         <KpiCard
           label="Receivables"
           value={formatMoney(overview.receivables, currency)}
-          sublabel={`Still owed by clients · ${receivables.rows.length} open deal${receivables.rows.length === 1 ? "" : "s"}`}
+          sublabel={`${receivables.rows.length} open deal${receivables.rows.length === 1 ? "" : "s"} still owed`}
           icon={HandCoins}
           tone="warning"
           href={opsHref(`/operations/${slug}/inflow/all?status=unpaid`)}
@@ -513,7 +516,7 @@ export default async function IntelligencePage({
       <SectionHeader title="Outflow" subtitle={`Expenses due and settled ${rangeLabel}`} />
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <KpiCard
-          label="Total Outflow (Due)"
+          label="Total Outflow Due"
           value={formatMoney(overview.totalOutflowDue, currency)}
           icon={ArrowUpFromLine}
           tone="brand"

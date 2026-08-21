@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ArrowDownRight, ArrowUpRight, ChevronRight, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { formatDeltaPercent } from "@/lib/format";
 import { Sparkline } from "@/components/charts/sparkline";
 
 export interface KpiDelta {
@@ -63,7 +64,7 @@ export function KpiCard({
           {hasDelta && (
             <div className={cn("flex items-center gap-0.5 text-xs font-medium", deltaColor)}>
               <DeltaIcon className="h-3 w-3" />
-              {Math.abs(deltaValue * 100).toFixed(1)}%
+              {formatDeltaPercent(deltaValue)}
             </div>
           )}
           {/* Only on drill-down tiles — signals there's something behind the
