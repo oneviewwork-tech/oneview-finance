@@ -24,7 +24,7 @@ const fredoka = Fredoka({
 
 export const metadata: Metadata = {
   title: "ONEVIEW Finance",
-  description: "Accounts and Finance View for HACA / ONEVIEW.",
+  description: "Accounts and Finance View for Haris&Co. / ONEVIEW.",
 };
 
 export default function RootLayout({
