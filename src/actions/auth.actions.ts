@@ -30,7 +30,10 @@ export async function changePassword(formData: FormData): Promise<ActionResult> 
   const passwordHash = await bcrypt.hash(parsed.data.newPassword, BCRYPT_ROUNDS);
   await prisma.user.update({
     where: { id: user.id },
-    data: { passwordHash, mustChangePassword: false },
+    // The admin-reset and forgot-password flows both clear the lockout
+    // counter on a successful password change; this path didn't, leaving
+    // it as the one way to set a password without also clearing it.
+    data: { passwordHash, mustChangePassword: false, failedLoginAttempts: 0, lockedUntil: null },
   });
   await writeAuditEvent(prisma, {
     entityType: "User",
