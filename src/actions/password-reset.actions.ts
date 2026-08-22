@@ -114,8 +114,8 @@ export async function requestPasswordReset(formData: FormData): Promise<ActionRe
     // against with a dummy bcrypt.compare on a miss.
     //
     // This doesn't reach the email-send step, so a network round trip to
-    // Brevo remains a residual (smaller, noisier) timing signal on top of
-    // this — closing that fully would mean firing a real request at Brevo
+    // Resend remains a residual (smaller, noisier) timing signal on top of
+    // this — closing that fully would mean firing a real request at Resend
     // for every miss too, which isn't worth it for an internal tool this
     // size.
     await bcrypt.hash("timing-equalisation", BCRYPT_ROUNDS);
