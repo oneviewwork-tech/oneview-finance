@@ -135,6 +135,43 @@ const MONEY_KEYS: DepartmentMoneyKey[] = [
   "net",
 ];
 
+/** Resolves each entity's rate into `reportingCurrency` once — shared by a
+ *  single department's lookup and by the all-departments card list, which
+ *  would otherwise re-resolve the identical conversion once per department. */
+async function resolveRates(
+  entities: { code: string; baseCurrency: Currency }[],
+  reportingCurrency: Currency,
+  asOf: Date
+): Promise<{ entityCode: string; rate: Prisma.Decimal | null }[]> {
+  return Promise.all(
+    entities.map(async (e) => {
+      if (e.baseCurrency === reportingCurrency) return { entityCode: e.code, rate: new Decimal(1) };
+      const resolved = await getRateForDate(e.baseCurrency, reportingCurrency, asOf);
+      return { entityCode: e.code, rate: resolved?.rate ?? null };
+    })
+  );
+}
+
+/** One missing rate makes the Total wrong rather than approximate, so it is
+ *  withheld rather than silently treating that region as zero. */
+function combineRegions(
+  regions: DepartmentRegionFigures[],
+  rates: { entityCode: string; rate: Prisma.Decimal | null }[]
+): DepartmentTotal {
+  if (rates.some((r) => r.rate === null)) return { available: false };
+
+  const summed: DepartmentMoney = { ...ZERO_MONEY };
+  let inflowCount = 0;
+  let outflowCount = 0;
+  regions.forEach((r, i) => {
+    const rate = rates[i].rate!;
+    for (const key of MONEY_KEYS) summed[key] = summed[key].plus(r[key].mul(rate));
+    inflowCount += r.inflowCount;
+    outflowCount += r.outflowCount;
+  });
+  return { available: true, ...summed, inflowCount, outflowCount };
+}
+
 export async function getDepartmentRegional(
   departmentId: string,
   reportingCurrency: Currency,
@@ -153,33 +190,8 @@ export async function getDepartmentRegional(
   // The period's own rate, matching the combined dashboard — never today's
   // rate for a historical period.
   const asOf = range?.to ?? new Date();
-  const rates = await Promise.all(
-    regions.map(async (r) => {
-      if (r.currency === reportingCurrency) return { entityCode: r.entityCode, rate: new Decimal(1) };
-      const resolved = await getRateForDate(r.currency, reportingCurrency, asOf);
-      return { entityCode: r.entityCode, rate: resolved?.rate ?? null };
-    })
-  );
-
-  // One missing rate makes the Total wrong rather than approximate, so it is
-  // withheld rather than silently treating that region as zero.
-  const anyMissing = rates.some((r) => r.rate === null);
-
-  let total: DepartmentTotal;
-  if (anyMissing) {
-    total = { available: false };
-  } else {
-    const summed: DepartmentMoney = { ...ZERO_MONEY };
-    let inflowCount = 0;
-    let outflowCount = 0;
-    regions.forEach((r, i) => {
-      const rate = rates[i].rate!;
-      for (const key of MONEY_KEYS) summed[key] = summed[key].plus(r[key].mul(rate));
-      inflowCount += r.inflowCount;
-      outflowCount += r.outflowCount;
-    });
-    total = { available: true, ...summed, inflowCount, outflowCount };
-  }
+  const rates = await resolveRates(entities, reportingCurrency, asOf);
+  const total = combineRegions(regions, rates);
 
   return {
     departmentId: department.id,
@@ -211,23 +223,29 @@ export async function listDepartmentCards(
   reportingCurrency: Currency,
   range?: DateRange
 ): Promise<DepartmentCard[]> {
-  const departments = await prisma.department.findMany({
-    where: { isActive: true },
-    orderBy: { sortOrder: "asc" },
-  });
+  // Departments, entities, and the FX rate all previously got re-fetched
+  // once PER department by calling getDepartmentRegional in a loop — the
+  // entity list and the rate are the same for every card, so that was N
+  // redundant round trips for one page. Fetched once here and reused.
+  const [departments, entities] = await Promise.all([
+    prisma.department.findMany({ where: { isActive: true }, orderBy: { sortOrder: "asc" } }),
+    prisma.businessEntity.findMany({ where: { status: "ACTIVE" }, orderBy: { code: "asc" } }),
+  ]);
+
+  const asOf = range?.to ?? new Date();
+  const rates = await resolveRates(entities, reportingCurrency, asOf);
 
   return Promise.all(
     departments.map(async (d) => {
-      const result = await getDepartmentRegional(d.id, reportingCurrency, range);
-      const total = result?.total;
-      const available = !!total && total.available;
+      const regions = await Promise.all(entities.map((e) => figuresForEntity(e, d.id, range)));
+      const total = combineRegions(regions, rates);
       return {
         id: d.id,
         name: d.name,
-        revenue: available ? total.revenue : null,
-        spent: available ? total.spent : null,
-        net: available ? total.net : null,
-        entryCount: result ? result.regions.reduce((n, r) => n + r.inflowCount + r.outflowCount, 0) : 0,
+        revenue: total.available ? total.revenue : null,
+        spent: total.available ? total.spent : null,
+        net: total.available ? total.net : null,
+        entryCount: regions.reduce((n, r) => n + r.inflowCount + r.outflowCount, 0),
       };
     })
   );
