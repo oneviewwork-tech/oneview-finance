@@ -1,9 +1,11 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { ArrowRight, LayoutDashboard, Wallet } from "lucide-react";
+import { ArrowRight, LayoutDashboard, LogOut, Wallet } from "lucide-react";
 import { auth } from "@/lib/auth";
 import { canAccessOperations } from "@/domain/access/permissions";
 import { BrandLogo } from "@/components/shared/brand-logo";
+import { logout } from "@/actions/auth.actions";
+import { Button } from "@/components/ui/button";
 
 // Workspace chooser — only ever seen by a signed-in user. Unauthenticated
 // visitors are sent to /login (also enforced centrally in proxy.ts, this is
@@ -52,7 +54,18 @@ export default async function Home() {
           )}
         </div>
 
-        <p className="mt-8 text-center text-metadata">Signed in as {email}</p>
+        <div className="mt-8 flex flex-col items-center gap-2">
+          <p className="text-metadata">Signed in as {email}</p>
+          {/* This chooser is the one page every signed-in user always lands
+              on, so it's the natural place for a sign-out affordance that
+              doesn't require first picking a workspace to find one. */}
+          <form action={logout}>
+            <Button type="submit" variant="ghost" size="sm" className="gap-2 text-muted-foreground">
+              <LogOut className="h-3.5 w-3.5" />
+              Sign out
+            </Button>
+          </form>
+        </div>
       </div>
     </main>
   );
