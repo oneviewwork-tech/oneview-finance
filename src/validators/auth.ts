@@ -4,7 +4,7 @@ import { z } from "zod";
 // not just length alone. Deliberately not requiring a specific special
 // character (that pushes people toward "Password1!" patterns) — length and
 // variety matter more than a mandated symbol.
-export const PASSWORD_MIN_LENGTH = 10;
+export const PASSWORD_MIN_LENGTH = 6;
 
 export const passwordSchema = z
   .string()
