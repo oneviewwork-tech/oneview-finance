@@ -1,5 +1,12 @@
 import { SidebarNav, type SidebarNavItem } from "./sidebar-nav";
-import { requireUser, canAccessOperations, canAccessEntityData, canManageUsers, canManageMasterData } from "@/lib/rbac";
+import {
+  requireUser,
+  canAccessOperations,
+  canAccessEntityData,
+  canManageUsers,
+  canManageMasterData,
+  canViewIntelligenceEntity,
+} from "@/lib/rbac";
 import { ROLE_LABEL } from "@/lib/roles";
 import { prisma } from "@/lib/prisma";
 import { entitySlug } from "@/lib/entities";
@@ -17,7 +24,7 @@ export async function Sidebar() {
     { label: "Exchange Rate", href: "/intelligence/fx", icon: "fx" },
   ];
 
-  const operationsChildren: { label: string; href: string; icon?: "import" | "data" | "users" }[] = [];
+  const operationsChildren: { label: string; href: string; icon?: "import" | "data" | "users" | "dept" }[] = [];
 
   if (canAccessOperations(user.role)) {
     const entities = await prisma.businessEntity.findMany({ where: { status: "ACTIVE" }, orderBy: { code: "asc" } });
@@ -25,6 +32,13 @@ export async function Sidebar() {
       if (canAccessEntityData(user.role, e.code)) {
         operationsChildren.push({ label: e.name, href: `/operations/${entitySlug(e.code)}` });
       }
+    }
+    // Same destination as Finance View's Departments entry — a department is
+    // cross-entity, so it needs the combined permission, same gate as the
+    // page itself (not just canAccessOperations, which a region-restricted
+    // user also has and would otherwise see a link that 404s for them).
+    if (canViewIntelligenceEntity(user.role, "ALL")) {
+      operationsChildren.push({ label: "Departments", href: "/intelligence/departments", icon: "dept" });
     }
     operationsChildren.push({ label: "Import", href: "/operations/import", icon: "import" });
     if (canManageMasterData(user.role)) {
